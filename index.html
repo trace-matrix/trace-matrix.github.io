@@ -126,74 +126,41 @@
               </div>
             </div>
 
-            <!-- Tool Mode -->
-            <div class="sidebar-section">
+            <!-- Cell Coordinates & Weighted Input -->
+            <div class="sidebar-section" id="section-cell-weight">
               <div class="section-header">
-                <h3>Interactive Tool</h3>
+                <h3>Set Cell Weight</h3>
               </div>
-              <div class="grid-tool-selector" role="radiogroup" aria-label="Grid Tool">
-                <button type="button" class="tool-btn active" data-grid-tool="inspect" title="Inspect & Select Cells (V)">
-                  <span class="tool-icon">🔍</span> Inspect
-                </button>
-                <button type="button" class="tool-btn" data-grid-tool="submatrix" title="Submatrix & 2D Prefix Sum (S)">
-                  <span class="tool-icon">⬚</span> Submatrix
-                </button>
-                <button type="button" class="tool-btn" data-grid-tool="wall" title="Toggle Obstacles / Walls # (W)">
-                  <span class="tool-icon">⬛</span> Wall (#)
-                </button>
-                <button type="button" class="tool-btn" data-grid-tool="start" title="Set Start Position S (A)">
-                  <span class="tool-icon">🟢</span> Start (S)
-                </button>
-                <button type="button" class="tool-btn" data-grid-tool="end" title="Set Target Position E (B)">
-                  <span class="tool-icon">🎯</span> Target (E)
-                </button>
-                <button type="button" class="tool-btn" data-grid-tool="edit" title="Edit Cell Value (E)">
-                  <span class="tool-icon">✏️</span> Edit Val
-                </button>
-              </div>
-            </div>
-
-            <!-- Pathfinding / Graph on Grid -->
-            <div class="sidebar-section">
-              <div class="section-header">
-                <h3>Grid Pathfinding (BFS / DFS)</h3>
-              </div>
-              <div class="algo-controls">
+              <div class="dim-inputs-row">
                 <div class="input-group">
-                  <label for="grid-algo-select">Algorithm</label>
-                  <select id="grid-algo-select" class="select-input">
-                    <option value="bfs">BFS (Shortest Path)</option>
-                    <option value="dfs">DFS (Flood Fill / Traversal)</option>
-                    <option value="multibfs">Multi-source BFS (Distance Field)</option>
-                  </select>
+                  <label for="cell-input-row">Row</label>
+                  <input type="number" id="cell-input-row" min="0" value="0">
                 </div>
-                <div class="checkbox-row mt-2">
-                  <label class="custom-checkbox">
-                    <input type="checkbox" id="grid-8dir">
-                    <span class="checkmark"></span>
-                    8-Directional (Include Diagonals)
-                  </label>
+                <div class="input-group">
+                  <label for="cell-input-col">Col</label>
+                  <input type="number" id="cell-input-col" min="0" value="0">
                 </div>
-                <div class="btn-group-row mt-2">
-                  <button type="button" class="btn btn-accent btn-sm" id="btn-run-pathfinding">▶ Run Path</button>
-                  <button type="button" class="btn btn-secondary btn-sm" id="btn-clear-path">Clear</button>
+                <div class="input-group">
+                  <label for="cell-input-weight">Weight</label>
+                  <input type="number" id="cell-input-weight" step="any" value="1">
                 </div>
-                <div id="pathfinding-stats" class="stats-box hidden mt-2">
-                  <div class="stat-line"><span>Status:</span> <strong id="stat-path-status">Found</strong></div>
-                  <div class="stat-line"><span>Length:</span> <strong id="stat-path-len">0</strong></div>
-                  <div class="stat-line"><span>Visited:</span> <strong id="stat-visited-count">0</strong></div>
-                </div>
+                <button type="button" class="btn btn-sm btn-primary" id="btn-set-cell-weight">Set</button>
               </div>
+              <div class="btn-group-row mt-2">
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-clear-grid" title="Reset all cells to 0">Clear Grid</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-fill-grid-weight" title="Fill all cells with specified weight">Fill All</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-random-weights" title="Populate grid with random integer weights">Randomize</button>
+              </div>
+              <p class="section-hint mt-2">💡 Double-click any cell on the canvas to edit its weight in-place.</p>
             </div>
 
             <!-- 2D Prefix Sums Inspector -->
             <div class="sidebar-section" id="section-prefix-sums">
               <div class="section-header">
                 <h3>2D Prefix Sum Calculator</h3>
-                <span class="badge-tag">CP HELPER</span>
               </div>
               <div class="prefix-sums-container">
-                <p class="section-hint">Drag a rectangle on the grid with <strong>Submatrix</strong> tool to query.</p>
+                <p class="section-hint">Drag a rectangle on the grid to query submatrix sum &amp; range.</p>
                 <div id="submatrix-stats" class="submatrix-stats-box mt-2">
                   <div class="stat-line"><span>Range:</span> <code id="sub-range-text">None selected</code></div>
                   <div class="stat-line"><span>Area:</span> <span id="sub-area-text">0 cells</span></div>
@@ -222,40 +189,6 @@
                     (r,c) Subscripts
                   </label>
                 </div>
-              </div>
-            </div>
-
-            <!-- Matrix Transformations & Operations -->
-            <div class="sidebar-section">
-              <div class="section-header">
-                <h3>Transformations</h3>
-              </div>
-              <div class="btn-grid-4">
-                <button type="button" class="btn btn-secondary btn-sm" id="btn-rot-cw" title="Rotate 90 deg Clockwise">↻ 90° CW</button>
-                <button type="button" class="btn btn-secondary btn-sm" id="btn-rot-ccw" title="Rotate 90 deg Counter-Clockwise">↺ 90° CCW</button>
-                <button type="button" class="btn btn-secondary btn-sm" id="btn-transpose" title="Transpose (Swap rows & cols)">⤢ Transpose</button>
-                <button type="button" class="btn btn-secondary btn-sm" id="btn-flip-h" title="Flip Horizontally">⇄ Flip H</button>
-                <button type="button" class="btn btn-secondary btn-sm" id="btn-flip-v" title="Flip Vertically">⇅ Flip V</button>
-                <button type="button" class="btn btn-secondary btn-sm" id="btn-clear-grid" title="Clear Grid">⌫ Clear</button>
-              </div>
-            </div>
-
-            <!-- CP Raw Input / Output Parser -->
-            <div class="sidebar-section">
-              <div class="section-header">
-                <h3>CP Judge I/O Parser</h3>
-              </div>
-              <textarea id="grid-raw-input" class="code-textarea" rows="3" placeholder="3 4&#10;1 2 3 4&#10;5 6 7 8&#10;9 10 11 12"></textarea>
-              <div class="btn-group-row mt-2">
-                <button type="button" class="btn btn-primary btn-sm" id="btn-parse-grid-input">Load</button>
-                <button type="button" class="btn btn-secondary btn-sm" id="btn-copy-grid-code">Copy C++ Vector</button>
-              </div>
-              <div class="presets-row mt-2">
-                <label>Presets:</label>
-                <button type="button" class="chip-btn" data-preset="maze">Maze</button>
-                <button type="button" class="chip-btn" data-preset="dp">DP Table</button>
-                <button type="button" class="chip-btn" data-preset="spiral">Spiral</button>
-                <button type="button" class="chip-btn" data-preset="random">Random</button>
               </div>
             </div>
           </aside>
@@ -306,11 +239,11 @@
                 <span class="dim-badge" id="point-count-badge">0 points</span>
               </div>
               <div class="grid-tool-selector" role="radiogroup" aria-label="Point Tool">
-                <button type="button" class="tool-btn active" data-point-tool="add" title="Add Point by Clicking (A)">
+                <button type="button" class="tool-btn" data-point-tool="add" title="Add Point by Clicking (A)">
                   <span class="tool-icon">📍</span> Add Point
                 </button>
-                <button type="button" class="tool-btn" data-point-tool="move" title="Select & Drag Points (V)">
-                  <span class="tool-icon">✋</span> Select / Move
+                <button type="button" class="tool-btn active" data-point-tool="move" title="Drag & Move (Default) — Drag points or pan plane. Double-click empty to add, point to connect (V)">
+                  <span class="tool-icon">✋</span> Drag &amp; Move
                 </button>
                 <button type="button" class="tool-btn" data-point-tool="segment" title="Draw Line Segment (L)">
                   <span class="tool-icon">📏</span> Segment
@@ -321,7 +254,7 @@
                 <button type="button" class="tool-btn" data-point-tool="measure" title="Measure Distance & Angle (M)">
                   <span class="tool-icon">📐</span> Measure
                 </button>
-                <button type="button" class="tool-btn" data-point-tool="delete" title="Delete Point (X)">
+                <button type="button" class="tool-btn" data-point-tool="delete" title="Delete Point or Line (X)">
                   <span class="tool-icon">🗑️</span> Delete
                 </button>
               </div>
@@ -405,7 +338,7 @@
                     </tr>
                   </thead>
                   <tbody id="point-table-body">
-                    <tr class="empty-row"><td colspan="4">No points. Click on canvas to add.</td></tr>
+                    <tr class="empty-row"><td colspan="4">No points yet. Double-click canvas or add above.</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -784,9 +717,9 @@ ll boundary_lattice_points(const vector&lt;Point&gt;&amp; p) {
           </div>
           <div class="shortcut-group">
             <h4>Algorithms</h4>
-            <div class="shortcut-row"><kbd>Enter</kbd><span>Run Pathfinding / Solve</span></div>
+            <div class="shortcut-row"><kbd>Dbl-Click</kbd><span>Edit Cell / Add Pt / Line</span></div>
             <div class="shortcut-row"><kbd>H</kbd><span>Compute Convex Hull</span></div>
-            <div class="shortcut-row"><kbd>Esc</kbd><span>Clear Selection</span></div>
+            <div class="shortcut-row"><kbd>Esc</kbd><span>Clear Selection / Line</span></div>
           </div>
         </div>
         <div class="modal-footer">

@@ -18,8 +18,12 @@ class PointVisualizer {
     this.points = [];
     this.nextPointId = 1;
 
-    // Active tool
-    this.activeTool = 'add';
+    // Segments (lines between points)
+    this.segments = [];
+    this.nextSegmentId = 1;
+
+    // Active tool: Default mode is 'move' (Drag & Move)
+    this.activeTool = 'move';
     this.snapToInteger = true;
     this.isMatrixCoords = false;
     this.showLabels = true;
@@ -31,8 +35,14 @@ class PointVisualizer {
     this.lastMouseX = 0;
     this.lastMouseY = 0;
     this.hoverPoint = null;
+    this.hoverSegment = null;
     this.mouseWorldX = 0;
     this.mouseWorldY = 0;
+    this.lastMouseCanvasX = 0;
+    this.lastMouseCanvasY = 0;
+
+    // Line creation from existing point
+    this.connectingPoint = null;
 
     // Overlays
     this.convexHull = null;
@@ -42,6 +52,7 @@ class PointVisualizer {
     this.initEventListeners();
     this.resizeCanvas();
     this.resetOrigin();
+    this.updateCursor();
   }
 
   resizeCanvas() {
@@ -104,6 +115,8 @@ class PointVisualizer {
         btn.classList.add('active');
         this.activeTool = btn.dataset.pointTool;
         this.selectedPoints = [];
+        this.connectingPoint = null;
+        this.updateCursor();
         this.render();
       });
     });
@@ -137,14 +150,19 @@ class PointVisualizer {
     // Clear and Fit
     document.getElementById('btn-clear-points')?.addEventListener('click', () => {
       this.points = [];
+      this.segments = [];
+      this.connectingPoint = null;
       this.nextPointId = 1;
+      this.nextSegmentId = 1;
       this.convexHull = null;
       this.closestPair = null;
       this.measureResult = null;
       this.updatePointTable();
       this.render();
-      window.App?.showToast('Cleared all points', 'info');
+      window.App?.showToast('Cleared all points & lines', 'info');
     });
+
+    document.getElementById('btn-fit-points')?.addEventListener('click', () => this.fitPoints());
 
     // Algorithm Buttons
     document.getElementById('btn-convex-hull')?.addEventListener('click', () => this.computeConvexHull());
@@ -171,6 +189,21 @@ class PointVisualizer {
     window.addEventListener('mousemove', (e) => this.handleMouseMove(e));
     window.addEventListener('mouseup', (e) => this.handleMouseUp(e));
     this.canvas.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
+
+    // Double-click interaction:
+    // - On empty space: add point
+    // - On existing point: create line to another point
+    this.canvas.addEventListener('dblclick', (e) => this.handleDoubleClick(e));
+
+    // Right-click: cancel connecting or delete segment under cursor
+    this.canvas.addEventListener('contextmenu', (e) => this.handleContextMenu(e));
+
+    // Cancel line connecting on Escape
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && this.connectingPoint) {
+        this.cancelConnecting();
+      }
+    });
   }
 
   worldToScreen(wx, wy) {
@@ -223,11 +256,56 @@ class PointVisualizer {
     return null;
   }
 
+  findSegmentAt(sx, sy, hitRadius = 8) {
+    for (let i = this.segments.length - 1; i >= 0; i--) {
+      const seg = this.segments[i];
+      const sc1 = this.worldToScreen(seg.p1.x, seg.p1.y);
+      const sc2 = this.worldToScreen(seg.p2.x, seg.p2.y);
+      const d = this.distToSegment(sx, sy, sc1.x, sc1.y, sc2.x, sc2.y);
+      if (d <= hitRadius) return seg;
+    }
+    return null;
+  }
+
+  distToSegment(px, py, x1, y1, x2, y2) {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq === 0) return Math.hypot(px - x1, py - y1);
+    let t = ((px - x1) * dx + (py - y1) * dy) / lenSq;
+    t = Math.max(0, Math.min(1, t));
+    const projX = x1 + t * dx;
+    const projY = y1 + t * dy;
+    return Math.hypot(px - projX, py - projY);
+  }
+
+  updateCursor() {
+    if (!this.canvas) return;
+    if (this.isPanning || this.draggedPoint) {
+      this.canvas.style.cursor = 'grabbing';
+    } else if (this.connectingPoint) {
+      this.canvas.style.cursor = this.hoverPoint ? 'pointer' : 'crosshair';
+    } else if (this.hoverPoint) {
+      this.canvas.style.cursor = 'pointer';
+    } else if (this.hoverSegment && this.activeTool === 'delete') {
+      this.canvas.style.cursor = 'not-allowed';
+    } else if (this.activeTool === 'move') {
+      this.canvas.style.cursor = 'grab';
+    } else if (this.activeTool === 'add') {
+      this.canvas.style.cursor = 'crosshair';
+    } else if (this.activeTool === 'delete') {
+      this.canvas.style.cursor = 'not-allowed';
+    } else {
+      this.canvas.style.cursor = 'crosshair';
+    }
+  }
+
   handleMouseDown(e) {
-    if (e.button === 1 || e.code === 'Space' || e.shiftKey) {
+    if (e.button === 1 || e.code === 'Space' || (e.shiftKey && this.activeTool !== 'move')) {
       this.isPanning = true;
       this.lastMouseX = e.clientX;
       this.lastMouseY = e.clientY;
+      this.updateCursor();
       return;
     }
 
@@ -238,7 +316,33 @@ class PointVisualizer {
     const sy = e.clientY - rect.top;
     const clickedPoint = this.findPointAt(sx, sy);
 
-    if (this.activeTool === 'add') {
+    // 1. If currently in line connecting mode
+    if (this.connectingPoint) {
+      if (clickedPoint && clickedPoint !== this.connectingPoint) {
+        this.addSegment(this.connectingPoint, clickedPoint);
+        window.App?.showToast(`Created line: ${this.connectingPoint.label} — ${clickedPoint.label}`, 'success');
+        this.connectingPoint = null;
+        this.updateCursor();
+        this.render();
+        return;
+      } else if (!clickedPoint) {
+        // Clicking empty space cancels connecting
+        this.connectingPoint = null;
+        this.updateCursor();
+        this.render();
+      }
+    }
+
+    // 2. Active Tool Behaviors
+    if (this.activeTool === 'move') {
+      if (clickedPoint) {
+        this.draggedPoint = clickedPoint;
+      } else {
+        this.isPanning = true;
+        this.lastMouseX = e.clientX;
+        this.lastMouseY = e.clientY;
+      }
+    } else if (this.activeTool === 'add') {
       if (clickedPoint) {
         this.draggedPoint = clickedPoint;
       } else {
@@ -251,19 +355,28 @@ class PointVisualizer {
         }
         this.addPoint(wx, wy);
       }
-    } else if (this.activeTool === 'move') {
-      if (clickedPoint) {
-        this.draggedPoint = clickedPoint;
-      } else {
-        this.isPanning = true;
-        this.lastMouseX = e.clientX;
-        this.lastMouseY = e.clientY;
-      }
     } else if (this.activeTool === 'delete') {
       if (clickedPoint) {
         this.deletePoint(clickedPoint.id);
+      } else {
+        const clickedSeg = this.findSegmentAt(sx, sy);
+        if (clickedSeg) {
+          this.deleteSegment(clickedSeg.id);
+          window.App?.showToast(`Deleted line ${clickedSeg.p1.label} — ${clickedSeg.p2.label}`, 'info');
+        }
       }
-    } else if (this.activeTool === 'segment' || this.activeTool === 'measure' || this.activeTool === 'polygon') {
+    } else if (this.activeTool === 'segment') {
+      if (clickedPoint) {
+        if (this.connectingPoint && this.connectingPoint !== clickedPoint) {
+          this.addSegment(this.connectingPoint, clickedPoint);
+          this.connectingPoint = null;
+        } else {
+          this.connectingPoint = clickedPoint;
+          window.App?.showToast(`Connecting from ${clickedPoint.label} — click another point`, 'info');
+        }
+        this.render();
+      }
+    } else if (this.activeTool === 'measure' || this.activeTool === 'polygon') {
       if (clickedPoint) {
         const idx = this.selectedPoints.indexOf(clickedPoint);
         if (idx >= 0) {
@@ -274,12 +387,16 @@ class PointVisualizer {
         this.render();
       }
     }
+
+    this.updateCursor();
   }
 
   handleMouseMove(e) {
     const rect = this.container.getBoundingClientRect();
     const sx = e.clientX - rect.left;
     const sy = e.clientY - rect.top;
+    this.lastMouseCanvasX = sx;
+    this.lastMouseCanvasY = sy;
 
     if (this.isPanning) {
       this.originX += e.clientX - this.lastMouseX;
@@ -310,12 +427,88 @@ class PointVisualizer {
     }
 
     this.hoverPoint = this.findPointAt(sx, sy);
+    this.hoverSegment = this.findSegmentAt(sx, sy);
+    this.updateCursor();
     this.render();
   }
 
   handleMouseUp(e) {
+    if (this.connectingPoint && this.draggedPoint && this.draggedPoint === this.connectingPoint) {
+      const rect = this.container.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+      const targetPoint = this.findPointAt(sx, sy);
+      if (targetPoint && targetPoint !== this.connectingPoint) {
+        this.addSegment(this.connectingPoint, targetPoint);
+        window.App?.showToast(`Created line: ${this.connectingPoint.label} — ${targetPoint.label}`, 'success');
+        this.connectingPoint = null;
+      }
+    }
     this.isPanning = false;
     this.draggedPoint = null;
+    this.updateCursor();
+    this.render();
+  }
+
+  handleDoubleClick(e) {
+    const rect = this.container.getBoundingClientRect();
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+    const clickedPoint = this.findPointAt(sx, sy);
+
+    if (!clickedPoint) {
+      // Requirement: Double click on empty space as add point
+      const world = this.screenToWorld(sx, sy);
+      let wx = world.x;
+      let wy = world.y;
+      if (this.snapToInteger) {
+        wx = Math.round(wx);
+        wy = Math.round(wy);
+      }
+      const exists = this.points.some(p => Math.abs(p.x - wx) < 1e-6 && Math.abs(p.y - wy) < 1e-6);
+      if (!exists) {
+        const pt = this.addPoint(wx, wy);
+        window.App?.showToast(`Added point ${pt.label} (${wx}, ${wy})`, 'success');
+      }
+      return;
+    }
+
+    // Requirement: Double click on exist point that can create line to another point
+    if (this.connectingPoint && this.connectingPoint !== clickedPoint) {
+      this.addSegment(this.connectingPoint, clickedPoint);
+      window.App?.showToast(`Created line: ${this.connectingPoint.label} — ${clickedPoint.label}`, 'success');
+      this.connectingPoint = null;
+    } else {
+      this.connectingPoint = clickedPoint;
+      window.App?.showToast(`Connecting from point ${clickedPoint.label} — click or double-click another point to create line`, 'info');
+    }
+    this.updateCursor();
+    this.render();
+  }
+
+  handleContextMenu(e) {
+    e.preventDefault();
+    if (this.connectingPoint) {
+      this.cancelConnecting();
+      return;
+    }
+    const rect = this.container.getBoundingClientRect();
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+    const seg = this.findSegmentAt(sx, sy);
+    if (seg) {
+      this.deleteSegment(seg.id);
+      window.App?.showToast(`Deleted line ${seg.p1.label} — ${seg.p2.label}`, 'info');
+    }
+  }
+
+  cancelConnecting() {
+    if (this.connectingPoint) {
+      this.connectingPoint = null;
+      this.updateCursor();
+      this.render();
+      window.App?.showToast('Line connecting cancelled', 'info');
+    }
   }
 
   addPoint(x, y, label = null) {
@@ -334,9 +527,39 @@ class PointVisualizer {
     return newPt;
   }
 
+  addSegment(p1, p2, color = '#38bdf8') {
+    if (!p1 || !p2 || p1.id === p2.id) return null;
+    const exists = this.segments.some(s =>
+      (s.p1.id === p1.id && s.p2.id === p2.id) ||
+      (s.p1.id === p2.id && s.p2.id === p1.id)
+    );
+    if (exists) {
+      window.App?.showToast(`Line between ${p1.label} and ${p2.label} already exists`, 'info');
+      return null;
+    }
+    const seg = {
+      id: this.nextSegmentId++,
+      p1,
+      p2,
+      color
+    };
+    this.segments.push(seg);
+    this.render();
+    return seg;
+  }
+
+  deleteSegment(id) {
+    this.segments = this.segments.filter(s => s.id !== id);
+    this.render();
+  }
+
   deletePoint(id) {
     this.points = this.points.filter(p => p.id !== id);
     this.selectedPoints = this.selectedPoints.filter(p => p.id !== id);
+    this.segments = this.segments.filter(s => s.p1.id !== id && s.p2.id !== id);
+    if (this.connectingPoint && this.connectingPoint.id === id) {
+      this.connectingPoint = null;
+    }
     this.updatePointTable();
     this.render();
   }
@@ -358,7 +581,7 @@ class PointVisualizer {
 
     if (!tbody) return;
     if (this.points.length === 0) {
-      tbody.innerHTML = `<tr class="empty-row"><td colspan="4">No points yet. Click on canvas or add above.</td></tr>`;
+      tbody.innerHTML = `<tr class="empty-row"><td colspan="4">No points yet. Double-click canvas or add above.</td></tr>`;
       return;
     }
 
@@ -570,7 +793,10 @@ class PointVisualizer {
 
   loadPreset(type) {
     this.points = [];
+    this.segments = [];
+    this.connectingPoint = null;
     this.nextPointId = 1;
+    this.nextSegmentId = 1;
     this.convexHull = null;
     this.closestPair = null;
 
@@ -616,7 +842,10 @@ class PointVisualizer {
 
     const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
     this.points = [];
+    this.segments = [];
+    this.connectingPoint = null;
     this.nextPointId = 1;
+    this.nextSegmentId = 1;
 
     let start = 0;
     if (lines[0].split(/\s+/).length === 1 && !isNaN(lines[0])) {
@@ -663,10 +892,60 @@ class PointVisualizer {
 
     this.ctx.clearRect(0, 0, width, height);
 
-    // 1. Draw Adaptive Cartesian Grid and Axes
+    // 1. Draw Full Grid with Rows, Columns, Ticks, and Main Axes
     this.renderAxesAndGrid(width, height);
 
-    // 2. Draw Segments between Selected Points
+    // 2. Draw User Line Segments (created by double-click or segment tool)
+    if (this.segments.length > 0) {
+      this.ctx.save();
+      for (const seg of this.segments) {
+        const sc1 = this.worldToScreen(seg.p1.x, seg.p1.y);
+        const sc2 = this.worldToScreen(seg.p2.x, seg.p2.y);
+
+        // Segment glow
+        this.ctx.strokeStyle = 'rgba(56, 189, 248, 0.22)';
+        this.ctx.lineWidth = 5;
+        this.ctx.beginPath();
+        this.ctx.moveTo(sc1.x, sc1.y);
+        this.ctx.lineTo(sc2.x, sc2.y);
+        this.ctx.stroke();
+
+        // Main segment line
+        this.ctx.strokeStyle = seg.color || '#38bdf8';
+        this.ctx.lineWidth = 2.2;
+        this.ctx.beginPath();
+        this.ctx.moveTo(sc1.x, sc1.y);
+        this.ctx.lineTo(sc2.x, sc2.y);
+        this.ctx.stroke();
+
+        // Segment length badge at midpoint
+        const midX = (sc1.x + sc2.x) / 2;
+        const midY = (sc1.y + sc2.y) / 2;
+        const dist = Math.hypot(seg.p2.x - seg.p1.x, seg.p2.y - seg.p1.y);
+        const distText = Number.isInteger(dist) ? dist.toString() : dist.toFixed(2);
+
+        this.ctx.font = '600 10px "JetBrains Mono", Menlo, monospace';
+        const tw = this.ctx.measureText(distText).width;
+        const pillW = tw + 8;
+        const pillH = 15;
+
+        this.ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+        this.ctx.strokeStyle = '#0284c7';
+        this.ctx.lineWidth = 1;
+        this.ctx.beginPath();
+        this.ctx.roundRect(midX - pillW / 2, midY - pillH / 2, pillW, pillH, 4);
+        this.ctx.fill();
+        this.ctx.stroke();
+
+        this.ctx.fillStyle = '#38bdf8';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText(distText, midX, midY);
+      }
+      this.ctx.restore();
+    }
+
+    // 3. Draw Segments between Selected Points (for Polygon / Measure tools)
     if (this.selectedPoints.length >= 2) {
       this.ctx.save();
       this.ctx.strokeStyle = '#38bdf8';
@@ -687,7 +966,7 @@ class PointVisualizer {
       this.ctx.restore();
     }
 
-    // 3. Draw Convex Hull
+    // 4. Draw Convex Hull
     if (this.convexHull && this.convexHull.length >= 3) {
       this.ctx.save();
       this.ctx.beginPath();
@@ -706,7 +985,7 @@ class PointVisualizer {
       this.ctx.restore();
     }
 
-    // 4. Draw Closest Pair
+    // 5. Draw Closest Pair
     if (this.closestPair && this.closestPair.length === 2) {
       const [p1, p2] = this.closestPair;
       const sc1 = this.worldToScreen(p1.x, p1.y);
@@ -722,31 +1001,86 @@ class PointVisualizer {
       this.ctx.restore();
     }
 
-    // 5. Draw Points with Clean Legible Pills
+    // 6. Draw Connecting Line Preview (when dragging / connecting from a point)
+    if (this.connectingPoint) {
+      const sc1 = this.worldToScreen(this.connectingPoint.x, this.connectingPoint.y);
+      const targetSc = this.hoverPoint && this.hoverPoint !== this.connectingPoint
+        ? this.worldToScreen(this.hoverPoint.x, this.hoverPoint.y)
+        : { x: this.lastMouseCanvasX || sc1.x, y: this.lastMouseCanvasY || sc1.y };
+
+      this.ctx.save();
+      // Glowing aura at source point
+      this.ctx.beginPath();
+      this.ctx.arc(sc1.x, sc1.y, 14, 0, Math.PI * 2);
+      this.ctx.fillStyle = 'rgba(56, 189, 248, 0.35)';
+      this.ctx.fill();
+
+      // Dashed connecting line
+      this.ctx.strokeStyle = '#38bdf8';
+      this.ctx.lineWidth = 2;
+      this.ctx.setLineDash([6, 4]);
+      this.ctx.beginPath();
+      this.ctx.moveTo(sc1.x, sc1.y);
+      this.ctx.lineTo(targetSc.x, targetSc.y);
+      this.ctx.stroke();
+
+      // Tooltip pill near target
+      const tipText = this.hoverPoint && this.hoverPoint !== this.connectingPoint
+        ? `Connect to ${this.hoverPoint.label}`
+        : `Click point to connect (Esc to cancel)`;
+
+      this.ctx.font = '500 11px "JetBrains Mono", Menlo, monospace';
+      const tipMetrics = this.ctx.measureText(tipText);
+      const tipW = tipMetrics.width + 12;
+      const tipH = 22;
+      const tipX = Math.min(width - tipW - 10, Math.max(10, targetSc.x + 12));
+      const tipY = Math.max(10, Math.min(height - tipH - 10, targetSc.y - 11));
+
+      this.ctx.setLineDash([]);
+      this.ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+      this.ctx.strokeStyle = '#0284c7';
+      this.ctx.lineWidth = 1;
+      this.ctx.beginPath();
+      this.ctx.roundRect(tipX, tipY, tipW, tipH, 4);
+      this.ctx.fill();
+      this.ctx.stroke();
+
+      this.ctx.fillStyle = '#38bdf8';
+      this.ctx.textAlign = 'left';
+      this.ctx.textBaseline = 'middle';
+      this.ctx.fillText(tipText, tipX + 6, tipY + tipH / 2);
+
+      this.ctx.restore();
+    }
+
+    // 7. Draw Points
     for (const p of this.points) {
       const sc = this.worldToScreen(p.x, p.y);
       const isSelected = this.selectedPoints.includes(p);
       const isHovered = this.hoverPoint === p;
-      const radius = isHovered ? 7.5 : (isSelected ? 7 : 5.5);
+      const isConnecting = this.connectingPoint === p;
+      const radius = isHovered ? 7.5 : (isSelected || isConnecting ? 7 : 5.5);
 
       // Outer glow
-      if (isSelected || isHovered) {
+      if (isSelected || isHovered || isConnecting) {
         this.ctx.beginPath();
-        this.ctx.arc(sc.x, sc.y, radius + 5, 0, Math.PI * 2);
-        this.ctx.fillStyle = isSelected ? 'rgba(56, 189, 248, 0.35)' : 'rgba(255, 255, 255, 0.18)';
+        this.ctx.arc(sc.x, sc.y, radius + 6, 0, Math.PI * 2);
+        this.ctx.fillStyle = isConnecting
+          ? 'rgba(56, 189, 248, 0.45)'
+          : (isSelected ? 'rgba(56, 189, 248, 0.35)' : 'rgba(255, 255, 255, 0.18)');
         this.ctx.fill();
       }
 
       // Point circle
       this.ctx.beginPath();
       this.ctx.arc(sc.x, sc.y, radius, 0, Math.PI * 2);
-      this.ctx.fillStyle = isSelected ? '#38bdf8' : (isHovered ? '#7dd3fc' : '#0284c7');
+      this.ctx.fillStyle = isConnecting ? '#38bdf8' : (isSelected ? '#38bdf8' : (isHovered ? '#7dd3fc' : '#0284c7'));
       this.ctx.fill();
       this.ctx.strokeStyle = '#ffffff';
       this.ctx.lineWidth = 1.8;
       this.ctx.stroke();
 
-      // Point Label Pill (Never clashes with gridlines!)
+      // Point Label Pill
       if (this.showLabels) {
         const labelText = `${p.label} (${p.x}, ${p.y})`;
         this.ctx.font = '600 11px "JetBrains Mono", Menlo, monospace';
@@ -757,16 +1091,14 @@ class PointVisualizer {
         const pillX = sc.x + radius + 4;
         const pillY = sc.y - textH / 2 - 2;
 
-        // Draw pill background
         this.ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
-        this.ctx.strokeStyle = '#334155';
+        this.ctx.strokeStyle = isConnecting ? '#38bdf8' : '#334155';
         this.ctx.lineWidth = 1;
         this.ctx.beginPath();
         this.ctx.roundRect(pillX - 4, pillY - 2, textW + 8, textH + 4, 4);
         this.ctx.fill();
         this.ctx.stroke();
 
-        // Draw label text
         this.ctx.fillStyle = '#f8fafc';
         this.ctx.textAlign = 'left';
         this.ctx.textBaseline = 'middle';
@@ -776,8 +1108,17 @@ class PointVisualizer {
   }
 
   renderAxesAndGrid(width, height) {
-    // Dynamic tick spacing with minimum 75px between numbers (Desmos style)
-    const minPxGap = 75;
+    // 1. Calculate the exact world bounds visible on screen
+    const pTopLeft = this.screenToWorld(0, 0);
+    const pBottomRight = this.screenToWorld(width, height);
+
+    const minX = Math.min(pTopLeft.x, pBottomRight.x);
+    const maxX = Math.max(pTopLeft.x, pBottomRight.x);
+    const minY = Math.min(pTopLeft.y, pBottomRight.y);
+    const maxY = Math.max(pTopLeft.y, pBottomRight.y);
+
+    // 2. Dynamic tick spacing (Desmos-style dynamic steps)
+    const minPxGap = 65;
     const rawInterval = minPxGap / this.scale;
     const power = Math.pow(10, Math.floor(Math.log10(rawInterval)));
     const normalized = rawInterval / power;
@@ -786,104 +1127,138 @@ class PointVisualizer {
     else if (normalized >= 2) step = 2 * power;
     else step = power;
 
-    const subStep = step / 5;
+    let subDiv = 5;
+    if (Math.round(step / power) === 2) subDiv = 4;
+    const subStep = step / subDiv;
 
-    // 1. Minor Grid Lines
-    if (subStep * this.scale > 12) {
+    const isDark = document.querySelector('meta[name="color-scheme"]')?.content !== 'light';
+
+    // 3. Minor Grid Lines (Full row & column lattice across entire plane)
+    if (subStep * this.scale >= 9) {
       this.ctx.save();
-      this.ctx.strokeStyle = 'rgba(148, 163, 184, 0.05)';
+      this.ctx.strokeStyle = isDark ? 'rgba(148, 163, 184, 0.08)' : 'rgba(100, 116, 139, 0.08)';
       this.ctx.lineWidth = 1;
       this.ctx.beginPath();
 
-      const startWorldX = Math.floor(-this.originX / (subStep * this.scale)) * subStep;
-      const endWorldX = Math.ceil((width - this.originX) / (subStep * this.scale)) * subStep;
-
-      for (let x = startWorldX; x <= endWorldX; x += subStep) {
-        const sx = this.originX + x * this.scale;
-        this.ctx.moveTo(sx, 0);
-        this.ctx.lineTo(sx, height);
+      const subStartX = Math.floor(minX / subStep) * subStep;
+      const subEndX = Math.ceil(maxX / subStep) * subStep;
+      for (let x = subStartX; x <= subEndX + subStep * 0.5; x += subStep) {
+        if (Math.abs(x / step - Math.round(x / step)) < 1e-4) continue;
+        const sx = this.worldToScreen(x, 0).x;
+        this.ctx.moveTo(Math.round(sx) + 0.5, 0);
+        this.ctx.lineTo(Math.round(sx) + 0.5, height);
       }
 
-      const startWorldY = Math.floor(-this.originY / (subStep * this.scale)) * subStep;
-      const endWorldY = Math.ceil((height - this.originY) / (subStep * this.scale)) * subStep;
-
-      for (let y = startWorldY; y <= endWorldY; y += subStep) {
-        const sy = this.originY + (this.isMatrixCoords ? y * this.scale : -y * this.scale);
-        this.ctx.moveTo(0, sy);
-        this.ctx.lineTo(width, sy);
+      const subStartY = Math.floor(minY / subStep) * subStep;
+      const subEndY = Math.ceil(maxY / subStep) * subStep;
+      for (let y = subStartY; y <= subEndY + subStep * 0.5; y += subStep) {
+        if (Math.abs(y / step - Math.round(y / step)) < 1e-4) continue;
+        const sy = this.worldToScreen(0, y).y;
+        this.ctx.moveTo(0, Math.round(sy) + 0.5);
+        this.ctx.lineTo(width, Math.round(sy) + 0.5);
       }
       this.ctx.stroke();
       this.ctx.restore();
     }
 
-    // 2. Major Grid Lines & Numbers
+    // 4. Major Grid Lines (Full rows & columns across entire plane)
     this.ctx.save();
-    this.ctx.strokeStyle = 'rgba(148, 163, 184, 0.14)';
+    this.ctx.strokeStyle = isDark ? 'rgba(148, 163, 184, 0.22)' : 'rgba(100, 116, 139, 0.22)';
     this.ctx.lineWidth = 1;
-    this.ctx.fillStyle = '#94a3b8';
-    this.ctx.font = '500 11px "JetBrains Mono", Menlo, monospace';
+    this.ctx.beginPath();
 
-    const startX = Math.floor(-this.originX / (step * this.scale)) * step;
-    const endX = Math.ceil((width - this.originX) / (step * this.scale)) * step;
-
-    for (let x = startX; x <= endX; x += step) {
-      const sx = this.originX + x * this.scale;
-      this.ctx.beginPath();
-      this.ctx.moveTo(sx, 0);
-      this.ctx.lineTo(sx, height);
-      this.ctx.stroke();
-
-      if (Math.abs(x) > 1e-9) {
-        this.ctx.textAlign = 'center';
-        this.ctx.textBaseline = 'top';
-        // Keep tick label attached to axis or clamped to screen margin
-        const labelY = Math.max(12, Math.min(height - 24, this.originY + 6));
-        this.ctx.fillText(Number(x.toFixed(4)), sx, labelY);
-      }
+    const startX = Math.floor(minX / step) * step;
+    const endX = Math.ceil(maxX / step) * step;
+    for (let x = startX; x <= endX + step * 0.5; x += step) {
+      if (Math.abs(x) < 1e-6) continue;
+      const sx = this.worldToScreen(x, 0).x;
+      this.ctx.moveTo(Math.round(sx) + 0.5, 0);
+      this.ctx.lineTo(Math.round(sx) + 0.5, height);
     }
 
-    const startY = Math.floor(-this.originY / (step * this.scale)) * step;
-    const endY = Math.ceil((height - this.originY) / (step * this.scale)) * step;
-
-    for (let y = startY; y <= endY; y += step) {
-      const sy = this.originY + (this.isMatrixCoords ? y * this.scale : -y * this.scale);
-      this.ctx.beginPath();
-      this.ctx.moveTo(0, sy);
-      this.ctx.lineTo(width, sy);
-      this.ctx.stroke();
-
-      if (Math.abs(y) > 1e-9) {
-        this.ctx.textAlign = 'right';
-        this.ctx.textBaseline = 'middle';
-        const labelX = Math.max(34, Math.min(width - 8, this.originX - 8));
-        this.ctx.fillText(Number(y.toFixed(4)), labelX, sy);
-      }
+    const startY = Math.floor(minY / step) * step;
+    const endY = Math.ceil(maxY / step) * step;
+    for (let y = startY; y <= endY + step * 0.5; y += step) {
+      if (Math.abs(y) < 1e-6) continue;
+      const sy = this.worldToScreen(0, y).y;
+      this.ctx.moveTo(0, Math.round(sy) + 0.5);
+      this.ctx.lineTo(width, Math.round(sy) + 0.5);
     }
+    this.ctx.stroke();
     this.ctx.restore();
 
-    // 3. Main Axes (X = 0, Y = 0)
+    // 5. Main Axes (X = 0, Y = 0)
+    const axisY = this.worldToScreen(0, 0).y;
+    const axisX = this.worldToScreen(0, 0).x;
+
     this.ctx.save();
-    this.ctx.strokeStyle = '#64748b';
+    this.ctx.strokeStyle = isDark ? '#64748b' : '#94a3b8';
     this.ctx.lineWidth = 2;
 
-    // X Axis
+    // X Axis (Horizontal line at Y = 0)
     this.ctx.beginPath();
-    this.ctx.moveTo(0, this.originY);
-    this.ctx.lineTo(width, this.originY);
+    this.ctx.moveTo(0, Math.round(axisY) + 0.5);
+    this.ctx.lineTo(width, Math.round(axisY) + 0.5);
     this.ctx.stroke();
 
-    // Y Axis
+    // Y Axis (Vertical line at X = 0)
     this.ctx.beginPath();
-    this.ctx.moveTo(this.originX, 0);
-    this.ctx.lineTo(this.originX, height);
+    this.ctx.moveTo(Math.round(axisX) + 0.5, 0);
+    this.ctx.lineTo(Math.round(axisX) + 0.5, height);
     this.ctx.stroke();
+    this.ctx.restore();
+
+    // 6. Draw Row and Column Labels / Numbers
+    this.ctx.save();
+    this.ctx.font = '500 11px "JetBrains Mono", Menlo, monospace';
+
+    // Column numbers (X ticks)
+    for (let x = startX; x <= endX + step * 0.5; x += step) {
+      if (Math.abs(x) < 1e-6) continue;
+      const sx = this.worldToScreen(x, 0).x;
+      if (sx < -20 || sx > width + 20) continue;
+
+      this.ctx.textAlign = 'center';
+      this.ctx.textBaseline = 'top';
+      const labelY = Math.max(12, Math.min(height - 24, axisY + 6));
+
+      const valText = Number(x.toFixed(4)).toString();
+      const tw = this.ctx.measureText(valText).width;
+      this.ctx.fillStyle = isDark ? 'rgba(10, 14, 23, 0.85)' : 'rgba(255, 255, 255, 0.85)';
+      this.ctx.fillRect(sx - tw / 2 - 2, labelY - 1, tw + 4, 14);
+
+      this.ctx.fillStyle = isDark ? '#94a3b8' : '#475569';
+      this.ctx.fillText(valText, sx, labelY);
+    }
+
+    // Row numbers (Y ticks)
+    for (let y = startY; y <= endY + step * 0.5; y += step) {
+      if (Math.abs(y) < 1e-6) continue;
+      const sy = this.worldToScreen(0, y).y;
+      if (sy < -20 || sy > height + 20) continue;
+
+      this.ctx.textAlign = 'right';
+      this.ctx.textBaseline = 'middle';
+      const labelX = Math.max(38, Math.min(width - 10, axisX - 8));
+
+      const valText = Number(y.toFixed(4)).toString();
+      const tw = this.ctx.measureText(valText).width;
+      this.ctx.fillStyle = isDark ? 'rgba(10, 14, 23, 0.85)' : 'rgba(255, 255, 255, 0.85)';
+      this.ctx.fillRect(labelX - tw - 2, sy - 7, tw + 4, 14);
+
+      this.ctx.fillStyle = isDark ? '#94a3b8' : '#475569';
+      this.ctx.fillText(valText, labelX, sy);
+    }
 
     // Origin (0, 0)
-    this.ctx.fillStyle = '#94a3b8';
-    this.ctx.font = '600 11px "JetBrains Mono", Menlo, monospace';
-    this.ctx.textAlign = 'right';
-    this.ctx.textBaseline = 'top';
-    this.ctx.fillText('0', this.originX - 6, this.originY + 6);
+    if (axisX >= 0 && axisX <= width && axisY >= 0 && axisY <= height) {
+      this.ctx.fillStyle = isDark ? 'rgba(10, 14, 23, 0.85)' : 'rgba(255, 255, 255, 0.85)';
+      this.ctx.fillRect(axisX - 16, axisY + 4, 14, 14);
+      this.ctx.fillStyle = isDark ? '#94a3b8' : '#475569';
+      this.ctx.textAlign = 'right';
+      this.ctx.textBaseline = 'top';
+      this.ctx.fillText('0', axisX - 5, axisY + 5);
+    }
 
     this.ctx.restore();
   }

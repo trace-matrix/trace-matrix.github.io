@@ -1,6 +1,6 @@
 /**
  * TraceMatrix — Grid & Matrix Visualizer (GridVis)
- * Ultra-clean 2D array, DP table, BFS/DFS pathfinding, and 2D prefix sums visualizer.
+ * 2D Array, Matrix weights, submatrix prefix sums, and in-cell editing.
  */
 
 class GridVisualizer {
@@ -20,15 +20,15 @@ class GridVisualizer {
 
     // Grid data
     this.grid = [];
-    this.initGrid(this.rows, this.cols);
+    this.initGrid(this.rows, this.cols, 0);
 
     // Interaction state
-    this.activeTool = 'inspect';
     this.isDragging = false;
     this.isPanning = false;
     this.lastMouseX = 0;
     this.lastMouseY = 0;
     this.hoverCell = null;
+    this.selectedCell = { row: 0, col: 0 };
 
     // Submatrix selection
     this.submatrix = null;
@@ -38,15 +38,12 @@ class GridVisualizer {
     // Visualization modes
     this.showHeatmap = false;
     this.showPrefixOverlay = false;
-    this.showSubscripts = false; // clean view by default
-    this.is8Directional = false;
-
-    // Pathfinding state
-    this.pathfindingResult = null;
+    this.showSubscripts = false;
 
     this.initEventListeners();
     this.resizeCanvas();
     this.fitGrid();
+    this.updateSidebarInputs(0, 0);
   }
 
   initGrid(rows, cols, defaultValue = 0) {
@@ -58,24 +55,14 @@ class GridVisualizer {
       for (let c = 0; c < this.cols; c++) {
         row.push({
           val: defaultValue,
-          type: 'empty',
-          dist: null,
-          inPath: false,
-          visited: false
+          type: 'empty'
         });
       }
       this.grid.push(row);
     }
-    // Default start and end
-    if (this.rows > 1 && this.cols > 1) {
-      this.grid[0][0].type = 'start';
-      this.grid[0][0].val = 'S';
-      this.grid[this.rows - 1][this.cols - 1].type = 'end';
-      this.grid[this.rows - 1][this.cols - 1].val = 'E';
-    }
     this.submatrix = null;
-    this.pathfindingResult = null;
     this.updateDimBadge();
+    this.updateSidebarInputs(0, 0);
   }
 
   updateDimBadge() {
@@ -126,15 +113,6 @@ class GridVisualizer {
   initEventListeners() {
     window.addEventListener('resize', () => this.resizeCanvas());
 
-    // Tools Buttons
-    document.querySelectorAll('[data-grid-tool]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('[data-grid-tool]').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        this.activeTool = btn.dataset.gridTool;
-      });
-    });
-
     // Resize button
     document.getElementById('btn-resize-grid')?.addEventListener('click', () => {
       const r = parseInt(document.getElementById('grid-rows')?.value) || 10;
@@ -156,6 +134,9 @@ class GridVisualizer {
     window.addEventListener('mouseup', (e) => this.handleMouseUp(e));
     this.canvas.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
 
+    // Double-click to edit cell value in place
+    this.canvas.addEventListener('dblclick', (e) => this.handleDoubleClick(e));
+
     // Toggles
     document.getElementById('toggle-prefix-overlay')?.addEventListener('change', (e) => {
       this.showPrefixOverlay = e.target.checked;
@@ -169,34 +150,38 @@ class GridVisualizer {
       this.showSubscripts = e.target.checked;
       this.render();
     });
-    document.getElementById('grid-8dir')?.addEventListener('change', (e) => {
-      this.is8Directional = e.target.checked;
-    });
 
-    // Transformations
-    document.getElementById('btn-rot-cw')?.addEventListener('click', () => this.rotate90CW());
-    document.getElementById('btn-rot-ccw')?.addEventListener('click', () => this.rotate90CCW());
-    document.getElementById('btn-transpose')?.addEventListener('click', () => this.transpose());
-    document.getElementById('btn-flip-h')?.addEventListener('click', () => this.flipHorizontal());
-    document.getElementById('btn-flip-v')?.addEventListener('click', () => this.flipVertical());
+    // Cell Weight Sidebar Controls
+    document.getElementById('btn-set-cell-weight')?.addEventListener('click', () => this.setCellWeightFromSidebar());
+
+    const commitOnEnter = (el) => {
+      el?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          this.setCellWeightFromSidebar();
+        }
+      });
+    };
+    commitOnEnter(document.getElementById('cell-input-row'));
+    commitOnEnter(document.getElementById('cell-input-col'));
+    commitOnEnter(document.getElementById('cell-input-weight'));
+
+    // Clear Grid
     document.getElementById('btn-clear-grid')?.addEventListener('click', () => {
-      this.initGrid(this.rows, this.cols);
-      this.render();
-      window.App?.showToast('Grid cleared', 'info');
+      this.clearGrid();
     });
 
-    // Pathfinding buttons
-    document.getElementById('btn-run-pathfinding')?.addEventListener('click', () => this.runPathfinding());
-    document.getElementById('btn-clear-path')?.addEventListener('click', () => this.clearPath());
-
-    // Presets
-    document.querySelectorAll('[data-preset]').forEach(btn => {
-      btn.addEventListener('click', () => this.loadPreset(btn.dataset.preset));
+    // Fill All
+    document.getElementById('btn-fill-grid-weight')?.addEventListener('click', () => {
+      const weightVal = parseFloat(document.getElementById('cell-input-weight')?.value);
+      const w = !isNaN(weightVal) ? weightVal : 0;
+      this.fillAllWeights(w);
     });
 
-    // Raw I/O
-    document.getElementById('btn-parse-grid-input')?.addEventListener('click', () => this.parseRawInput());
-    document.getElementById('btn-copy-grid-code')?.addEventListener('click', () => this.copyCppVector());
+    // Randomize
+    document.getElementById('btn-random-weights')?.addEventListener('click', () => {
+      this.randomizeWeights();
+    });
   }
 
   zoomAtCenter(factor) {
@@ -207,6 +192,7 @@ class GridVisualizer {
     this.panX = cx - (cx - this.panX) * (newZoom / this.zoom);
     this.panY = cy - (cy - this.panY) * (newZoom / this.zoom);
     this.zoom = newZoom;
+    this.removeInlineEditor();
     this.updateStatusPill();
     this.render();
   }
@@ -223,6 +209,7 @@ class GridVisualizer {
     this.panY = mouseY - (mouseY - this.panY) * (newZoom / this.zoom);
     this.zoom = newZoom;
 
+    this.removeInlineEditor();
     this.updateStatusPill();
     this.render();
   }
@@ -242,30 +229,30 @@ class GridVisualizer {
       this.isPanning = true;
       this.lastMouseX = e.clientX;
       this.lastMouseY = e.clientY;
+      this.removeInlineEditor();
       return;
     }
 
     if (e.button !== 0) return;
 
     const rect = this.container.getBoundingClientRect();
-    const cell = this.screenToGrid(e.clientX - rect.left, e.clientY - rect.top);
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+    const cell = this.screenToGrid(sx, sy);
 
-    if (this.activeTool === 'submatrix') {
-      if (cell) {
-        this.isSelectingSubmatrix = true;
-        this.subStart = cell;
-        this.submatrix = { r1: cell.row, c1: cell.col, r2: cell.row, c2: cell.col };
-        this.updateSubmatrixStats();
-        this.render();
-      }
-    } else if (cell) {
-      this.isDragging = true;
-      this.applyToolToCell(cell.row, cell.col);
+    if (cell) {
+      this.isSelectingSubmatrix = true;
+      this.subStart = cell;
+      this.selectedCell = cell;
+      this.submatrix = { r1: cell.row, c1: cell.col, r2: cell.row, c2: cell.col };
+      this.updateSidebarInputs(cell.row, cell.col);
+      this.updateSubmatrixStats();
       this.render();
     } else {
       this.isPanning = true;
       this.lastMouseX = e.clientX;
       this.lastMouseY = e.clientY;
+      this.removeInlineEditor();
     }
   }
 
@@ -297,9 +284,6 @@ class GridVisualizer {
       this.submatrix = { r1, c1, r2, c2 };
       this.updateSubmatrixStats();
       this.render();
-    } else if (this.isDragging && cell && this.activeTool === 'wall') {
-      this.applyToolToCell(cell.row, cell.col);
-      this.render();
     } else {
       this.render();
     }
@@ -307,55 +291,180 @@ class GridVisualizer {
 
   handleMouseUp(e) {
     this.isPanning = false;
-    this.isDragging = false;
     this.isSelectingSubmatrix = false;
   }
 
-  applyToolToCell(r, c) {
-    const cell = this.grid[r][c];
-    if (this.activeTool === 'inspect') {
-      this.submatrix = { r1: r, c1: c, r2: r, c2: c };
+  // Double-click to edit cell value in place
+  handleDoubleClick(e) {
+    const rect = this.container.getBoundingClientRect();
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+    const cell = this.screenToGrid(sx, sy);
+    if (!cell) return;
+
+    this.editCellInline(cell.row, cell.col);
+  }
+
+  removeInlineEditor() {
+    const existing = this.container?.querySelector('.cell-inline-input');
+    if (existing) existing.remove();
+  }
+
+  editCellInline(row, col) {
+    this.removeInlineEditor();
+
+    const cell = this.grid[row][col];
+    const cs = this.cellSize * this.zoom;
+    const cellX = this.panX + col * cs;
+    const cellY = this.panY + row * cs;
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'cell-inline-input';
+    input.value = cell.val !== undefined && cell.val !== null ? cell.val : '';
+    input.style.left = `${Math.round(cellX)}px`;
+    input.style.top = `${Math.round(cellY)}px`;
+    input.style.width = `${Math.round(cs)}px`;
+    input.style.height = `${Math.round(cs)}px`;
+
+    const commit = () => {
+      const valStr = input.value.trim();
+      const num = Number(valStr);
+      const finalVal = !isNaN(num) && valStr !== '' ? num : valStr;
+      cell.val = finalVal;
+      cell.type = 'empty';
+
+      this.selectedCell = { row, col };
+      this.updateSidebarInputs(row, col);
       this.updateSubmatrixStats();
-    } else if (this.activeTool === 'wall') {
-      if (cell.type === 'wall') {
-        cell.type = 'empty';
-        cell.val = 0;
-      } else {
-        cell.type = 'wall';
-        cell.val = '#';
-      }
-    } else if (this.activeTool === 'start') {
-      for (let i = 0; i < this.rows; i++) {
-        for (let j = 0; j < this.cols; j++) {
-          if (this.grid[i][j].type === 'start') {
-            this.grid[i][j].type = 'empty';
-            this.grid[i][j].val = 0;
-          }
+      this.render();
+      input.remove();
+    };
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        commit();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        input.remove();
+      } else if (e.key === 'Tab') {
+        e.preventDefault();
+        commit();
+        let nextCol = col + (e.shiftKey ? -1 : 1);
+        let nextRow = row;
+        if (nextCol >= this.cols) {
+          nextCol = 0;
+          nextRow = (nextRow + 1) % this.rows;
+        } else if (nextCol < 0) {
+          nextCol = this.cols - 1;
+          nextRow = (nextRow - 1 + this.rows) % this.rows;
         }
+        this.editCellInline(nextRow, nextCol);
       }
-      cell.type = 'start';
-      cell.val = 'S';
-    } else if (this.activeTool === 'end') {
-      for (let i = 0; i < this.rows; i++) {
-        for (let j = 0; j < this.cols; j++) {
-          if (this.grid[i][j].type === 'end') {
-            this.grid[i][j].type = 'empty';
-            this.grid[i][j].val = 0;
-          }
-        }
-      }
-      cell.type = 'end';
-      cell.val = 'E';
-    } else if (this.activeTool === 'edit') {
-      const current = cell.val;
-      const promptVal = prompt(`Edit cell (${this.formatCoord(r, c)}) value:`, current);
-      if (promptVal !== null) {
-        const num = Number(promptVal);
-        cell.val = !isNaN(num) && promptVal.trim() !== '' ? num : promptVal;
-        if (cell.type === 'wall' && cell.val !== '#') cell.type = 'empty';
-        this.updateSubmatrixStats();
+    });
+
+    input.addEventListener('blur', () => {
+      commit();
+    });
+
+    this.container.appendChild(input);
+    input.focus();
+    input.select();
+  }
+
+  setCellWeightFromSidebar() {
+    const isOneIdx = window.App?.isOneIndexed;
+    const rInput = document.getElementById('cell-input-row');
+    const cInput = document.getElementById('cell-input-col');
+    const wInput = document.getElementById('cell-input-weight');
+
+    let r = parseInt(rInput?.value);
+    let c = parseInt(cInput?.value);
+    if (isNaN(r) || isNaN(c)) return;
+
+    if (isOneIdx) {
+      r -= 1;
+      c -= 1;
+    }
+
+    if (r < 0 || r >= this.rows || c < 0 || c >= this.cols) {
+      window.App?.showToast(`Coordinates out of bounds! Rows: 0..${this.rows - 1}, Cols: 0..${this.cols - 1}`, 'error');
+      return;
+    }
+
+    const valStr = wInput?.value.trim() ?? '0';
+    const num = Number(valStr);
+    const finalVal = !isNaN(num) && valStr !== '' ? num : valStr;
+
+    this.grid[r][c].val = finalVal;
+    this.grid[r][c].type = 'empty';
+    this.selectedCell = { row: r, col: c };
+    this.submatrix = { r1: r, c1: c, r2: r, c2: c };
+
+    this.updateSubmatrixStats();
+    this.render();
+    window.App?.showToast(`Cell (${this.formatCoord(r, c)}) weight set to ${finalVal}`, 'success');
+  }
+
+  updateSidebarInputs(row, col) {
+    if (row === undefined || col === undefined) {
+      row = this.selectedCell?.row || 0;
+      col = this.selectedCell?.col || 0;
+    }
+    const isOneIdx = window.App?.isOneIndexed;
+    const rDisp = isOneIdx ? row + 1 : row;
+    const cDisp = isOneIdx ? col + 1 : col;
+
+    const rInput = document.getElementById('cell-input-row');
+    const cInput = document.getElementById('cell-input-col');
+    const wInput = document.getElementById('cell-input-weight');
+
+    if (rInput) rInput.value = rDisp;
+    if (cInput) cInput.value = cDisp;
+    if (wInput && this.grid[row] && this.grid[row][col]) {
+      wInput.value = this.grid[row][col].val;
+    }
+  }
+
+  clearGrid() {
+    for (let r = 0; r < this.rows; r++) {
+      for (let c = 0; c < this.cols; c++) {
+        this.grid[r][c].val = 0;
+        this.grid[r][c].type = 'empty';
       }
     }
+    this.submatrix = null;
+    this.updateSidebarInputs(0, 0);
+    this.updateSubmatrixStats();
+    this.render();
+    window.App?.showToast('All grid cells reset to 0', 'info');
+  }
+
+  fillAllWeights(weight) {
+    for (let r = 0; r < this.rows; r++) {
+      for (let c = 0; c < this.cols; c++) {
+        this.grid[r][c].val = weight;
+        this.grid[r][c].type = 'empty';
+      }
+    }
+    this.updateSidebarInputs();
+    this.updateSubmatrixStats();
+    this.render();
+    window.App?.showToast(`Filled all cells with weight ${weight}`, 'info');
+  }
+
+  randomizeWeights() {
+    for (let r = 0; r < this.rows; r++) {
+      for (let c = 0; c < this.cols; c++) {
+        this.grid[r][c].val = Math.floor(Math.random() * 99) + 1;
+        this.grid[r][c].type = 'empty';
+      }
+    }
+    this.updateSidebarInputs();
+    this.updateSubmatrixStats();
+    this.render();
+    window.App?.showToast('Grid populated with random weights (1–99)', 'info');
   }
 
   formatCoord(r, c) {
@@ -379,7 +488,7 @@ class GridVisualizer {
       const rDisp = isOneIdx ? row + 1 : row;
       const cDisp = isOneIdx ? col + 1 : col;
       if (statusCell) statusCell.textContent = `Cell: (${rDisp}, ${cDisp}) [1D: ${row * this.cols + col}]`;
-      if (statusVal) statusVal.textContent = `Val: ${cell.val}${cell.dist !== null ? ` | dist: ${cell.dist}` : ''}`;
+      if (statusVal) statusVal.textContent = `Val: ${cell.val}`;
     } else {
       if (statusCell) statusCell.textContent = `Cell: -`;
       if (statusVal) statusVal.textContent = `Val: -`;
@@ -449,448 +558,20 @@ class GridVisualizer {
       const P = this.computePrefixSums();
       const R2 = r2 + 1;
       const C2 = c2 + 1;
-      const R1 = r1 + 1;
-      const C1 = c1 + 1;
+      const R1 = r1; // top exclusion
+      const C1 = c1; // left exclusion
 
-      const pA = P[R2][C2];
-      const pB = P[R1 - 1][C2];
-      const pC = P[R2][C1 - 1];
-      const pD = P[R1 - 1][C1 - 1];
-      const calculatedSum = pA - pB - pC + pD;
+      const pTotal = P[R2][C2];
+      const pTop = P[R1][C2];
+      const pLeft = P[R2][C1];
+      const pDiag = P[R1][C1];
+      const calcSum = pTotal - pTop - pLeft + pDiag;
 
       breakdownEl.innerHTML = `
-        <div style="color:var(--text-muted); font-size:11px;">Prefix coordinates:</div>
-        <div>P[${R2}][${C2}] = <strong>${pA}</strong> (Full rectangle from origin)</div>
-        <div>- P[${R1 - 1}][${C2}] = <strong>-${pB}</strong> (Subtract top rectangle)</div>
-        <div>- P[${R2}][${C1 - 1}] = <strong>-${pC}</strong> (Subtract left rectangle)</div>
-        <div>+ P[${R1 - 1}][${C1 - 1}] = <strong>+${pD}</strong> (Add back double-subtracted top-left)</div>
-        <div style="margin-top:4px; font-weight:700; color:var(--accent); border-top:1px dashed var(--border); padding-top:4px;">
-          Result = ${pA} - ${pB} - ${pC} + ${pD} = <strong>${calculatedSum}</strong>
-        </div>
+        <div class="calc-row">= P[${r2Disp}][${c2Disp}] − P[${isOneIdx ? r1 : r1 - 1}][${c2Disp}] − P[${r2Disp}][${isOneIdx ? c1 : c1 - 1}] + P[${isOneIdx ? r1 : r1 - 1}][${isOneIdx ? c1 : c1 - 1}]</div>
+        <div class="calc-row">= <strong>${pTotal}</strong> − <strong>${pTop}</strong> − <strong>${pLeft}</strong> + <strong>${pDiag}</strong> = <strong class="text-accent">${calcSum}</strong></div>
       `;
     }
-  }
-
-  runPathfinding() {
-    const algo = document.getElementById('grid-algo-select')?.value || 'bfs';
-    let start = null;
-    let end = null;
-    const starts = [];
-
-    for (let r = 0; r < this.rows; r++) {
-      for (let c = 0; c < this.cols; c++) {
-        this.grid[r][c].dist = null;
-        this.grid[r][c].inPath = false;
-        this.grid[r][c].visited = false;
-        if (this.grid[r][c].type === 'start') {
-          start = { r, c };
-          starts.push({ r, c });
-        }
-        if (this.grid[r][c].type === 'end') end = { r, c };
-      }
-    }
-
-    if (algo === 'multibfs') {
-      if (starts.length === 0) {
-        window.App?.showToast('Add at least one Start (S) cell for multi-source BFS', 'error');
-        return;
-      }
-      this.runMultiSourceBFS(starts);
-      return;
-    }
-
-    if (!start || !end) {
-      window.App?.showToast('Please set both Start (S) and Target (E) cells!', 'error');
-      return;
-    }
-
-    if (algo === 'bfs') {
-      this.runBFS(start, end);
-    } else if (algo === 'dfs') {
-      this.runDFS(start, end);
-    }
-  }
-
-  runBFS(start, end) {
-    const queue = [[start.r, start.c]];
-    const parent = Array.from({ length: this.rows }, () => Array(this.cols).fill(null));
-    this.grid[start.r][start.c].dist = 0;
-    this.grid[start.r][start.c].visited = true;
-
-    const dr = this.is8Directional ? [-1, -1, -1, 0, 0, 1, 1, 1] : [-1, 0, 1, 0];
-    const dc = this.is8Directional ? [-1, 0, 1, -1, 1, -1, 0, 1] : [0, 1, 0, -1];
-
-    let found = false;
-    let visitedCount = 0;
-
-    while (queue.length > 0) {
-      const [r, c] = queue.shift();
-      visitedCount++;
-
-      if (r === end.r && c === end.c) {
-        found = true;
-        break;
-      }
-
-      for (let i = 0; i < dr.length; i++) {
-        const nr = r + dr[i];
-        const nc = c + dc[i];
-        if (nr >= 0 && nr < this.rows && nc >= 0 && nc < this.cols) {
-          if (!this.grid[nr][nc].visited && this.grid[nr][nc].type !== 'wall') {
-            this.grid[nr][nc].visited = true;
-            this.grid[nr][nc].dist = this.grid[r][c].dist + 1;
-            parent[nr][nc] = [r, c];
-            queue.push([nr, nc]);
-          }
-        }
-      }
-    }
-
-    let pathLen = 0;
-    if (found) {
-      let curr = [end.r, end.c];
-      while (curr) {
-        this.grid[curr[0]][curr[1]].inPath = true;
-        pathLen++;
-        curr = parent[curr[0]][curr[1]];
-      }
-      pathLen -= 1;
-    }
-
-    this.showPathStats(found, pathLen, visitedCount);
-    this.render();
-  }
-
-  runDFS(start, end) {
-    const stack = [[start.r, start.c]];
-    const parent = Array.from({ length: this.rows }, () => Array(this.cols).fill(null));
-    this.grid[start.r][start.c].visited = true;
-    this.grid[start.r][start.c].dist = 0;
-
-    const dr = this.is8Directional ? [-1, -1, -1, 0, 0, 1, 1, 1] : [-1, 0, 1, 0];
-    const dc = this.is8Directional ? [-1, 0, 1, -1, 1, -1, 0, 1] : [0, 1, 0, -1];
-
-    let found = false;
-    let visitedCount = 0;
-
-    while (stack.length > 0) {
-      const [r, c] = stack.pop();
-      visitedCount++;
-
-      if (r === end.r && c === end.c) {
-        found = true;
-        break;
-      }
-
-      for (let i = 0; i < dr.length; i++) {
-        const nr = r + dr[i];
-        const nc = c + dc[i];
-        if (nr >= 0 && nr < this.rows && nc >= 0 && nc < this.cols) {
-          if (!this.grid[nr][nc].visited && this.grid[nr][nc].type !== 'wall') {
-            this.grid[nr][nc].visited = true;
-            this.grid[nr][nc].dist = this.grid[r][c].dist + 1;
-            parent[nr][nc] = [r, c];
-            stack.push([nr, nc]);
-          }
-        }
-      }
-    }
-
-    let pathLen = 0;
-    if (found) {
-      let curr = [end.r, end.c];
-      while (curr) {
-        this.grid[curr[0]][curr[1]].inPath = true;
-        pathLen++;
-        curr = parent[curr[0]][curr[1]];
-      }
-      pathLen -= 1;
-    }
-
-    this.showPathStats(found, pathLen, visitedCount);
-    this.render();
-  }
-
-  runMultiSourceBFS(starts) {
-    const queue = [];
-    for (const s of starts) {
-      this.grid[s.r][s.c].dist = 0;
-      this.grid[s.r][s.c].visited = true;
-      queue.push([s.r, s.c]);
-    }
-
-    const dr = this.is8Directional ? [-1, -1, -1, 0, 0, 1, 1, 1] : [-1, 0, 1, 0];
-    const dc = this.is8Directional ? [-1, 0, 1, -1, 1, -1, 0, 1] : [0, 1, 0, -1];
-    let visited = 0;
-
-    while (queue.length > 0) {
-      const [r, c] = queue.shift();
-      visited++;
-      for (let i = 0; i < dr.length; i++) {
-        const nr = r + dr[i];
-        const nc = c + dc[i];
-        if (nr >= 0 && nr < this.rows && nc >= 0 && nc < this.cols) {
-          if (!this.grid[nr][nc].visited && this.grid[nr][nc].type !== 'wall') {
-            this.grid[nr][nc].visited = true;
-            this.grid[nr][nc].dist = this.grid[r][c].dist + 1;
-            queue.push([nr, nc]);
-          }
-        }
-      }
-    }
-
-    this.showPathStats(true, 'Multi-field', visited);
-    this.render();
-  }
-
-  showPathStats(found, len, visited) {
-    const statsBox = document.getElementById('pathfinding-stats');
-    if (!statsBox) return;
-    statsBox.classList.remove('hidden');
-    const statusEl = document.getElementById('stat-path-status');
-    const lenEl = document.getElementById('stat-path-len');
-    const visitedEl = document.getElementById('stat-visited-count');
-
-    if (statusEl) {
-      statusEl.textContent = found ? 'Path Found!' : 'No Path';
-      statusEl.style.color = found ? 'var(--color-success)' : 'var(--color-danger)';
-    }
-    if (lenEl) lenEl.textContent = `${len} steps`;
-    if (visitedEl) visitedEl.textContent = `${visited} cells visited`;
-  }
-
-  clearPath() {
-    for (let r = 0; r < this.rows; r++) {
-      for (let c = 0; c < this.cols; c++) {
-        this.grid[r][c].dist = null;
-        this.grid[r][c].inPath = false;
-        this.grid[r][c].visited = false;
-      }
-    }
-    const statsBox = document.getElementById('pathfinding-stats');
-    if (statsBox) statsBox.classList.add('hidden');
-    this.render();
-  }
-
-  rotate90CW() {
-    const newR = this.cols;
-    const newC = this.rows;
-    const newGrid = [];
-    for (let r = 0; r < newR; r++) {
-      const row = [];
-      for (let c = 0; c < newC; c++) {
-        row.push(this.grid[this.rows - 1 - c][r]);
-      }
-      newGrid.push(row);
-    }
-    this.rows = newR;
-    this.cols = newC;
-    this.grid = newGrid;
-    this.submatrix = null;
-    this.updateDimBadge();
-    this.render();
-    window.App?.showToast('Rotated 90° Clockwise', 'info');
-  }
-
-  rotate90CCW() {
-    const newR = this.cols;
-    const newC = this.rows;
-    const newGrid = [];
-    for (let r = 0; r < newR; r++) {
-      const row = [];
-      for (let c = 0; c < newC; c++) {
-        row.push(this.grid[c][this.cols - 1 - r]);
-      }
-      newGrid.push(row);
-    }
-    this.rows = newR;
-    this.cols = newC;
-    this.grid = newGrid;
-    this.submatrix = null;
-    this.updateDimBadge();
-    this.render();
-    window.App?.showToast('Rotated 90° Counter-Clockwise', 'info');
-  }
-
-  transpose() {
-    const newR = this.cols;
-    const newC = this.rows;
-    const newGrid = [];
-    for (let r = 0; r < newR; r++) {
-      const row = [];
-      for (let c = 0; c < newC; c++) {
-        row.push(this.grid[c][r]);
-      }
-      newGrid.push(row);
-    }
-    this.rows = newR;
-    this.cols = newC;
-    this.grid = newGrid;
-    this.submatrix = null;
-    this.updateDimBadge();
-    this.render();
-    window.App?.showToast('Transposed Matrix (Rows ⇄ Cols)', 'info');
-  }
-
-  flipHorizontal() {
-    for (let r = 0; r < this.rows; r++) {
-      this.grid[r].reverse();
-    }
-    this.submatrix = null;
-    this.render();
-    window.App?.showToast('Flipped Horizontally', 'info');
-  }
-
-  flipVertical() {
-    this.grid.reverse();
-    this.submatrix = null;
-    this.render();
-    window.App?.showToast('Flipped Vertically', 'info');
-  }
-
-  loadPreset(type) {
-    if (type === 'maze') {
-      this.initGrid(12, 16, '.');
-      for (let r = 2; r < 10; r++) this.grid[r][3] = { val: '#', type: 'wall', dist: null, inPath: false, visited: false };
-      for (let c = 3; c < 12; c++) this.grid[9][c] = { val: '#', type: 'wall', dist: null, inPath: false, visited: false };
-      for (let r = 3; r < 9; r++) this.grid[r][7] = { val: '#', type: 'wall', dist: null, inPath: false, visited: false };
-      for (let c = 7; c < 15; c++) this.grid[3][c] = { val: '#', type: 'wall', dist: null, inPath: false, visited: false };
-      for (let r = 4; r < 11; r++) this.grid[r][11] = { val: '#', type: 'wall', dist: null, inPath: false, visited: false };
-      this.grid[0][0] = { val: 'S', type: 'start', dist: null, inPath: false, visited: false };
-      this.grid[11][15] = { val: 'E', type: 'end', dist: null, inPath: false, visited: false };
-      window.App?.showToast('Maze preset loaded', 'info');
-    } else if (type === 'dp') {
-      const s1 = "ALGORITHM";
-      const s2 = "LOGIC";
-      const R = s1.length + 1;
-      const C = s2.length + 1;
-      this.initGrid(R, C, 0);
-      const dp = Array.from({ length: R }, () => Array(C).fill(0));
-      for (let i = 1; i < R; i++) {
-        for (let j = 1; j < C; j++) {
-          if (s1[i - 1] === s2[j - 1]) dp[i][j] = dp[i - 1][j - 1] + 1;
-          else dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
-        }
-      }
-      for (let i = 0; i < R; i++) {
-        for (let j = 0; j < C; j++) {
-          this.grid[i][j].val = dp[i][j];
-          this.grid[i][j].type = 'empty';
-        }
-      }
-      this.showHeatmap = true;
-      const heatCheck = document.getElementById('toggle-heatmap');
-      if (heatCheck) heatCheck.checked = true;
-      window.App?.showToast('DP (LCS) matrix loaded with heatmap', 'info');
-    } else if (type === 'spiral') {
-      const N = 8;
-      this.initGrid(N, N, 0);
-      let val = 1;
-      let top = 0, bottom = N - 1, left = 0, right = N - 1;
-      while (top <= bottom && left <= right) {
-        for (let c = left; c <= right; c++) this.grid[top][c].val = val++;
-        top++;
-        for (let r = top; r <= bottom; r++) this.grid[r][right].val = val++;
-        right--;
-        if (top <= bottom) {
-          for (let c = right; c >= left; c--) this.grid[bottom][c].val = val++;
-          bottom--;
-        }
-        if (left <= right) {
-          for (let r = bottom; r >= top; r--) this.grid[r][left].val = val++;
-          left++;
-        }
-      }
-      window.App?.showToast('8×8 Spiral matrix loaded', 'info');
-    } else if (type === 'random') {
-      this.initGrid(10, 10, 0);
-      for (let r = 0; r < 10; r++) {
-        for (let c = 0; c < 10; c++) {
-          this.grid[r][c].val = Math.floor(Math.random() * 99) + 1;
-        }
-      }
-      window.App?.showToast('Random matrix loaded', 'info');
-    }
-    this.fitGrid();
-  }
-
-  parseRawInput() {
-    const raw = document.getElementById('grid-raw-input')?.value.trim();
-    if (!raw) {
-      window.App?.showToast('Input area is empty!', 'error');
-      return;
-    }
-
-    const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
-    if (lines.length === 0) return;
-
-    let startLine = 0;
-    let targetR = lines.length;
-    let targetC = null;
-
-    const firstTokens = lines[0].split(/\s+/);
-    if (firstTokens.length === 2 && !isNaN(firstTokens[0]) && !isNaN(firstTokens[1])) {
-      targetR = parseInt(firstTokens[0]);
-      targetC = parseInt(firstTokens[1]);
-      startLine = 1;
-    }
-
-    const matrixData = [];
-    for (let i = startLine; i < lines.length; i++) {
-      const line = lines[i];
-      let tokens;
-      if (line.includes(' ') || line.includes('\t') || line.includes(',')) {
-        tokens = line.split(/[\s,]+/).filter(t => t.length > 0);
-      } else {
-        tokens = line.split('');
-      }
-      matrixData.push(tokens);
-    }
-
-    if (matrixData.length === 0) return;
-    const finalR = targetR && startLine > 0 ? targetR : matrixData.length;
-    const finalC = targetC && startLine > 0 ? targetC : matrixData[0].length;
-
-    this.initGrid(finalR, finalC);
-
-    for (let r = 0; r < Math.min(finalR, matrixData.length); r++) {
-      for (let c = 0; c < Math.min(finalC, matrixData[r].length); c++) {
-        const item = matrixData[r][c];
-        const num = Number(item);
-        if (!isNaN(num) && item !== '') {
-          this.grid[r][c].val = num;
-          this.grid[r][c].type = 'empty';
-        } else if (item === '#' || (item === '1' && matrixData[r].every(x => x === '0' || x === '1'))) {
-          this.grid[r][c].val = '#';
-          this.grid[r][c].type = 'wall';
-        } else if (item === 'S' || item === 's') {
-          this.grid[r][c].val = 'S';
-          this.grid[r][c].type = 'start';
-        } else if (item === 'E' || item === 'e') {
-          this.grid[r][c].val = 'E';
-          this.grid[r][c].type = 'end';
-        } else {
-          this.grid[r][c].val = item;
-          this.grid[r][c].type = 'empty';
-        }
-      }
-    }
-
-    this.fitGrid();
-    window.App?.showToast(`Loaded ${finalR} × ${finalC} matrix from CP input`, 'success');
-  }
-
-  copyCppVector() {
-    let out = `vector<vector<int>> grid = {\n`;
-    for (let r = 0; r < this.rows; r++) {
-      out += `    {`;
-      out += this.grid[r].map(c => typeof c.val === 'number' ? c.val : `"${c.val}"`).join(', ');
-      out += `}${r < this.rows - 1 ? ',' : ''}\n`;
-    }
-    out += `};`;
-    navigator.clipboard.writeText(out).then(() => {
-      window.App?.showToast('Copied C++ 2D vector to clipboard!', 'success');
-    });
   }
 
   // ==========================================
@@ -932,26 +613,10 @@ class GridVisualizer {
         const y = r * cs;
         const cell = this.grid[r][c];
 
-        // Clean Modern Dark Card Fill
         let fillColor = '#161e2e'; // clean deep slate
         let textColor = '#f1f5f9'; // bright crisp text
 
-        if (cell.type === 'wall') {
-          fillColor = '#0b0f19'; // dark wall
-          textColor = '#64748b';
-        } else if (cell.type === 'start') {
-          fillColor = '#059669'; // Emerald
-          textColor = '#ffffff';
-        } else if (cell.type === 'end') {
-          fillColor = '#e11d48'; // Rose Red
-          textColor = '#ffffff';
-        } else if (cell.inPath) {
-          fillColor = '#d97706'; // Amber path
-          textColor = '#ffffff';
-        } else if (cell.visited) {
-          fillColor = 'rgba(14, 165, 233, 0.22)';
-          textColor = '#38bdf8';
-        } else if (this.showHeatmap && typeof cell.val === 'number' && maxVal > minVal) {
+        if (this.showHeatmap && typeof cell.val === 'number' && maxVal > minVal) {
           const ratio = (cell.val - minVal) / (maxVal - minVal);
           fillColor = `rgba(56, 189, 248, ${0.15 + ratio * 0.75})`;
           textColor = ratio > 0.6 ? '#ffffff' : '#e0f2fe';
@@ -973,20 +638,10 @@ class GridVisualizer {
         this.ctx.textBaseline = 'middle';
         this.ctx.fillStyle = textColor;
 
-        if (cell.type === 'wall') {
-          this.ctx.fillText('#', x + cs / 2, y + cs / 2);
-        } else if (cell.type === 'start') {
-          this.ctx.fillText('S', x + cs / 2, y + cs / 2);
-        } else if (cell.type === 'end') {
-          this.ctx.fillText('E', x + cs / 2, y + cs / 2);
-        } else if (cell.inPath) {
-          this.ctx.fillText(cell.dist !== null ? cell.dist : cell.val, x + cs / 2, y + cs / 2);
-        } else {
-          const text = this.showPrefixOverlay ? P[r + 1][c + 1] : cell.val;
-          this.ctx.fillText(text, x + cs / 2, y + cs / 2);
-        }
+        const text = this.showPrefixOverlay ? P[r + 1][c + 1] : cell.val;
+        this.ctx.fillText(text, x + cs / 2, y + cs / 2);
 
-        // Coordinate subscripts (only if explicitly toggled on)
+        // Coordinate subscripts
         if (this.showSubscripts && cs >= 42) {
           const rDisp = isOneIdx ? r + 1 : r;
           const cDisp = isOneIdx ? c + 1 : c;

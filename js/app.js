@@ -151,6 +151,7 @@ class AppCoordinator {
 
       if (window.gridVis) {
         window.gridVis.updateSubmatrixStats();
+        window.gridVis.updateSidebarInputs();
         window.gridVis.updateStatusPill();
         window.gridVis.render();
       }
@@ -276,9 +277,10 @@ class AppCoordinator {
         else if (this.currentTab === 'chess') window.chessVis?.resetView();
       } else if (e.key === 'h' || e.key === 'H') {
         if (this.currentTab === 'point') window.pointVis?.computeConvexHull();
+      } else if (e.key === 'Escape') {
+        if (this.currentTab === 'point') window.pointVis?.cancelConnecting();
       } else if (e.key === 'Enter') {
-        if (this.currentTab === 'grid') window.gridVis?.runPathfinding();
-        else if (this.currentTab === 'chess') window.chessVis?.triggerKnightBFS();
+        if (this.currentTab === 'chess') window.chessVis?.triggerKnightBFS();
       }
     });
   }
