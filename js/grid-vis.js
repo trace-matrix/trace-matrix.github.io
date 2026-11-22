@@ -182,6 +182,25 @@ class GridVisualizer {
     document.getElementById('btn-random-weights')?.addEventListener('click', () => {
       this.randomizeWeights();
     });
+
+    // Batch Paste Controls (x y val)
+    const batchInput = document.getElementById('grid-batch-input');
+    batchInput?.addEventListener('paste', (e) => {
+      const clipboardText = e.clipboardData ? e.clipboardData.getData('text') : null;
+      if (clipboardText) {
+        setTimeout(() => {
+          this.parseBatchInput(clipboardText);
+        }, 30);
+      }
+    });
+
+    document.getElementById('btn-apply-batch-grid')?.addEventListener('click', () => {
+      this.parseBatchInput(batchInput?.value);
+    });
+
+    document.getElementById('btn-clear-batch-text')?.addEventListener('click', () => {
+      if (batchInput) batchInput.value = '';
+    });
   }
 
   zoomAtCenter(factor) {
@@ -465,6 +484,111 @@ class GridVisualizer {
     this.updateSubmatrixStats();
     this.render();
     window.App?.showToast('Grid populated with random weights (1–99)', 'info');
+  }
+
+  parseBatchInput(rawText) {
+    if (!rawText || !rawText.trim()) return;
+
+    const lines = rawText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+    if (lines.length === 0) return;
+
+    const parsedEntries = [];
+    let startLine = 0;
+
+    // Check if first line is just an entry count N
+    const firstTokens = lines[0].split(/[\s,]+/).filter(t => t.length > 0);
+    if (firstTokens.length === 1 && !isNaN(Number(firstTokens[0]))) {
+      startLine = 1;
+    }
+
+    const isOneIdx = window.App?.isOneIndexed;
+    let minR = Infinity, minC = Infinity;
+    let maxR = -Infinity, maxC = -Infinity;
+
+    for (let i = startLine; i < lines.length; i++) {
+      const tokens = lines[i].split(/[\s,]+/).filter(t => t.length > 0);
+      if (tokens.length >= 2) {
+        const rawR = parseInt(tokens[0]);
+        const rawC = parseInt(tokens[1]);
+        if (isNaN(rawR) || isNaN(rawC)) continue;
+
+        const valStr = tokens.length >= 3 ? tokens.slice(2).join(' ') : '1';
+        const num = Number(valStr);
+        const finalVal = !isNaN(num) && valStr.trim() !== '' ? num : valStr;
+
+        parsedEntries.push({ r: rawR, c: rawC, val: finalVal });
+        minR = Math.min(minR, rawR);
+        minC = Math.min(minC, rawC);
+        maxR = Math.max(maxR, rawR);
+        maxC = Math.max(maxC, rawC);
+      }
+    }
+
+    if (parsedEntries.length === 0) {
+      window.App?.showToast('No valid "x y val" rows found in input', 'error');
+      return;
+    }
+
+    // If 1-indexed mode is toggled on and min coordinate >= 1, shift by -1
+    const shouldSubtract1 = isOneIdx && minR >= 1 && minC >= 1;
+    let targetMaxR = -1;
+    let targetMaxC = -1;
+
+    for (const entry of parsedEntries) {
+      if (shouldSubtract1) {
+        entry.r -= 1;
+        entry.c -= 1;
+      }
+      targetMaxR = Math.max(targetMaxR, entry.r);
+      targetMaxC = Math.max(targetMaxC, entry.c);
+    }
+
+    // Auto-expand grid if coordinates exceed current bounds (up to 100 max)
+    const neededRows = Math.min(100, Math.max(this.rows, targetMaxR + 1));
+    const neededCols = Math.min(100, Math.max(this.cols, targetMaxC + 1));
+
+    if (neededRows > this.rows || neededCols > this.cols) {
+      this.resizeGridPreserving(neededRows, neededCols);
+    }
+
+    // Apply values to grid cells
+    let updatedCount = 0;
+    for (const entry of parsedEntries) {
+      if (entry.r >= 0 && entry.r < this.rows && entry.c >= 0 && entry.c < this.cols) {
+        this.grid[entry.r][entry.c].val = entry.val;
+        this.grid[entry.r][entry.c].type = 'empty';
+        updatedCount++;
+      }
+    }
+
+    this.updateSubmatrixStats();
+    this.render();
+    window.App?.showToast(`Added ${updatedCount} cell value${updatedCount !== 1 ? 's' : ''} to grid!`, 'success');
+  }
+
+  resizeGridPreserving(newRows, newCols) {
+    const oldGrid = this.grid;
+    const oldRows = this.rows;
+    const oldCols = this.cols;
+
+    this.rows = newRows;
+    this.cols = newCols;
+    this.grid = [];
+
+    for (let r = 0; r < newRows; r++) {
+      const row = [];
+      for (let c = 0; c < newCols; c++) {
+        if (r < oldRows && c < oldCols) {
+          row.push(oldGrid[r][c]);
+        } else {
+          row.push({ val: 0, type: 'empty' });
+        }
+      }
+      this.grid.push(row);
+    }
+
+    this.updateDimBadge();
+    this.fitGrid();
   }
 
   formatCoord(r, c) {

@@ -154,6 +154,19 @@
               <p class="section-hint mt-2">💡 Double-click any cell on the canvas to edit its weight in-place.</p>
             </div>
 
+            <!-- Batch Cell Value / Coordinate Paste Input -->
+            <div class="sidebar-section" id="section-batch-paste">
+              <div class="section-header">
+                <h3>Paste Coordinates &amp; Values</h3>
+              </div>
+              <textarea id="grid-batch-input" class="code-textarea" rows="4" placeholder="x1 y1 val1&#10;x2 y2 val2&#10;&#10;e.g.&#10;0 0 5&#10;1 2 10&#10;2 3 25"></textarea>
+              <div class="btn-group-row mt-2">
+                <button type="button" class="btn btn-primary btn-sm" id="btn-apply-batch-grid">Apply to Grid</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-clear-batch-text">Clear</button>
+              </div>
+              <p class="section-hint mt-2">📋 Pasting (Ctrl+V) automatically updates grid cells.</p>
+            </div>
+
             <!-- 2D Prefix Sums Inspector -->
             <div class="sidebar-section" id="section-prefix-sums">
               <div class="section-header">
