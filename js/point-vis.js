@@ -11,22 +11,22 @@ class PointVisualizer {
 
     // Coordinate plane transform
     this.scale = 40; // pixels per unit
-    this.originX = 0; // canvas pixel x corresponding to world 0
-    this.originY = 0; // canvas pixel y corresponding to world 0
+    this.originX = 0;
+    this.originY = 0;
 
     // Points data
     this.points = [];
     this.nextPointId = 1;
 
-    // Active tool: 'add', 'move', 'segment', 'polygon', 'measure', 'delete'
+    // Active tool
     this.activeTool = 'add';
     this.snapToInteger = true;
-    this.isMatrixCoords = false; // if true, Y points down (screen/matrix convention)
+    this.isMatrixCoords = false;
     this.showLabels = true;
 
     // Interaction state
     this.draggedPoint = null;
-    this.selectedPoints = []; // for multi-point operations (segments, measure, etc)
+    this.selectedPoints = [];
     this.isPanning = false;
     this.lastMouseX = 0;
     this.lastMouseY = 0;
@@ -34,10 +34,9 @@ class PointVisualizer {
     this.mouseWorldX = 0;
     this.mouseWorldY = 0;
 
-    // Computed Geometry Overlays
+    // Overlays
     this.convexHull = null;
     this.closestPair = null;
-    this.activePolygon = null;
     this.measureResult = null;
 
     this.initEventListeners();
@@ -61,6 +60,7 @@ class PointVisualizer {
     this.originX = Math.round(rect.width / 2);
     this.originY = Math.round(rect.height / 2);
     this.scale = 40;
+    this.updateStatusPill();
     this.render();
   }
 
@@ -77,19 +77,20 @@ class PointVisualizer {
       minY = Math.min(minY, p.y);
       maxY = Math.max(maxY, p.y);
     }
-    const spanX = Math.max(2, maxX - minX);
-    const spanY = Math.max(2, maxY - minY);
+    const spanX = Math.max(3, maxX - minX);
+    const spanY = Math.max(3, maxY - minY);
 
-    const pad = 80;
+    const pad = 90;
     const scaleX = (rect.width - pad * 2) / spanX;
     const scaleY = (rect.height - pad * 2) / spanY;
-    this.scale = Math.max(8, Math.min(120, Math.min(scaleX, scaleY)));
+    this.scale = Math.max(10, Math.min(100, Math.min(scaleX, scaleY)));
 
     const midX = (minX + maxX) / 2;
     const midY = (minY + maxY) / 2;
     this.originX = rect.width / 2 - midX * this.scale;
     this.originY = rect.height / 2 + (this.isMatrixCoords ? -midY * this.scale : midY * this.scale);
 
+    this.updateStatusPill();
     this.render();
   }
 
@@ -172,7 +173,6 @@ class PointVisualizer {
     this.canvas.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
   }
 
-  // World <-> Screen Coordinate conversion
   worldToScreen(wx, wy) {
     const sx = this.originX + wx * this.scale;
     const sy = this.originY + (this.isMatrixCoords ? wy * this.scale : -wy * this.scale);
@@ -189,10 +189,11 @@ class PointVisualizer {
     const rect = this.container.getBoundingClientRect();
     const cx = rect.width / 2;
     const cy = rect.height / 2;
-    const newScale = Math.max(4, Math.min(400, this.scale * factor));
+    const newScale = Math.max(4, Math.min(300, this.scale * factor));
     this.originX = cx - (cx - this.originX) * (newScale / this.scale);
     this.originY = cy - (cy - this.originY) * (newScale / this.scale);
     this.scale = newScale;
+    this.updateStatusPill();
     this.render();
   }
 
@@ -202,16 +203,17 @@ class PointVisualizer {
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
     const factor = e.deltaY < 0 ? 1.12 : 0.89;
-    const newScale = Math.max(4, Math.min(400, this.scale * factor));
+    const newScale = Math.max(4, Math.min(300, this.scale * factor));
 
     this.originX = mx - (mx - this.originX) * (newScale / this.scale);
     this.originY = my - (my - this.originY) * (newScale / this.scale);
     this.scale = newScale;
 
+    this.updateStatusPill();
     this.render();
   }
 
-  findPointAt(sx, sy, hitRadius = 12) {
+  findPointAt(sx, sy, hitRadius = 14) {
     for (let i = this.points.length - 1; i >= 0; i--) {
       const p = this.points[i];
       const sc = this.worldToScreen(p.x, p.y);
@@ -222,7 +224,7 @@ class PointVisualizer {
   }
 
   handleMouseDown(e) {
-    if (e.button === 1 || e.code === 'Space' || e.shiftKey) { // Middle click or Space/Shift drag: Pan
+    if (e.button === 1 || e.code === 'Space' || e.shiftKey) {
       this.isPanning = true;
       this.lastMouseX = e.clientX;
       this.lastMouseY = e.clientY;
@@ -238,10 +240,8 @@ class PointVisualizer {
 
     if (this.activeTool === 'add') {
       if (clickedPoint) {
-        // Drag existing point if clicked on one
         this.draggedPoint = clickedPoint;
       } else {
-        // Add new point at world coords
         const world = this.screenToWorld(sx, sy);
         let wx = world.x;
         let wy = world.y;
@@ -397,19 +397,15 @@ class PointVisualizer {
   // COMPUTATIONAL GEOMETRY ALGORITHMS
   // ==========================================
 
-  // 1. Convex Hull (Andrew's Monotone Chain)
   computeConvexHull() {
     if (this.points.length < 3) {
       window.App?.showToast('Convex Hull requires at least 3 points', 'error');
       return;
     }
 
-    // Sort points by x, then y
     const sorted = [...this.points].sort((a, b) => a.x !== b.x ? a.x - b.x : a.y - b.y);
-
     const cross = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
 
-    // Build lower hull
     const lower = [];
     for (const p of sorted) {
       while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) {
@@ -418,7 +414,6 @@ class PointVisualizer {
       lower.push(p);
     }
 
-    // Build upper hull
     const upper = [];
     for (let i = sorted.length - 1; i >= 0; i--) {
       const p = sorted[i];
@@ -428,13 +423,11 @@ class PointVisualizer {
       upper.push(p);
     }
 
-    // Concatenate lower and upper hull
     lower.pop();
     upper.pop();
     const hull = lower.concat(upper);
     this.convexHull = hull;
 
-    // Compute Perimeter & Area
     let perimeter = 0;
     let area2 = 0;
     const n = hull.length;
@@ -453,7 +446,6 @@ class PointVisualizer {
     this.render();
   }
 
-  // 2. Closest Pair of Points
   computeClosestPair() {
     if (this.points.length < 2) {
       window.App?.showToast('Need at least 2 points for closest pair', 'error');
@@ -488,7 +480,6 @@ class PointVisualizer {
     this.render();
   }
 
-  // 3. Polygon Area (Shoelace) & Pick's Theorem
   computePolygonArea() {
     const pts = this.selectedPoints.length >= 3 ? this.selectedPoints : this.points;
     if (pts.length < 3) {
@@ -514,8 +505,6 @@ class PointVisualizer {
 
     const area = Math.abs(signedArea2) / 2;
     const orientation = signedArea2 > 0 ? (this.isMatrixCoords ? 'Clockwise (CW)' : 'Counter-Clockwise (CCW)') : (this.isMatrixCoords ? 'Counter-Clockwise (CCW)' : 'Clockwise (CW)');
-
-    // Pick's theorem: Area = I + B/2 - 1 => I = Area - B/2 + 1
     const interior = area - boundary / 2 + 1;
 
     this.showGeometryResult("Polygon Area & Pick's Theorem", `
@@ -532,7 +521,6 @@ class PointVisualizer {
     this.render();
   }
 
-  // 4. Vector Orientation & Cross Product
   computeOrientation() {
     if (this.selectedPoints.length !== 3) {
       if (this.points.length >= 3) {
@@ -544,7 +532,6 @@ class PointVisualizer {
     }
 
     const [A, B, C] = this.selectedPoints;
-    // Cross product: (B - A) x (C - A)
     const cross = (B.x - A.x) * (C.y - A.y) - (B.y - A.y) * (C.x - A.x);
     const dot = (B.x - A.x) * (C.x - A.x) + (B.y - A.y) * (C.y - A.y);
     const magAB = Math.hypot(B.x - A.x, B.y - A.y);
@@ -581,7 +568,6 @@ class PointVisualizer {
     box.classList.remove('hidden');
   }
 
-  // Presets
   loadPreset(type) {
     this.points = [];
     this.nextPointId = 1;
@@ -633,7 +619,6 @@ class PointVisualizer {
     this.nextPointId = 1;
 
     let start = 0;
-    // Check if line 1 has single count N
     if (lines[0].split(/\s+/).length === 1 && !isNaN(lines[0])) {
       start = 1;
     }
@@ -667,7 +652,7 @@ class PointVisualizer {
   }
 
   // ==========================================
-  // RENDERING
+  // RENDERING (Desmos Grade Clean Plane)
   // ==========================================
 
   render() {
@@ -678,13 +663,13 @@ class PointVisualizer {
 
     this.ctx.clearRect(0, 0, width, height);
 
-    // 1. Draw Cartesian Coordinate Axes & Adaptive Grid
+    // 1. Draw Adaptive Cartesian Grid and Axes
     this.renderAxesAndGrid(width, height);
 
-    // 2. Draw Polygon / Segments between selected points
+    // 2. Draw Segments between Selected Points
     if (this.selectedPoints.length >= 2) {
       this.ctx.save();
-      this.ctx.strokeStyle = 'rgba(56, 189, 248, 0.7)';
+      this.ctx.strokeStyle = '#38bdf8';
       this.ctx.lineWidth = 2;
       this.ctx.beginPath();
       const first = this.worldToScreen(this.selectedPoints[0].x, this.selectedPoints[0].y);
@@ -695,14 +680,14 @@ class PointVisualizer {
       }
       if (this.activeTool === 'polygon' && this.selectedPoints.length >= 3) {
         this.ctx.closePath();
-        this.ctx.fillStyle = 'rgba(56, 189, 248, 0.12)';
+        this.ctx.fillStyle = 'rgba(56, 189, 248, 0.15)';
         this.ctx.fill();
       }
       this.ctx.stroke();
       this.ctx.restore();
     }
 
-    // 3. Draw Convex Hull if computed
+    // 3. Draw Convex Hull
     if (this.convexHull && this.convexHull.length >= 3) {
       this.ctx.save();
       this.ctx.beginPath();
@@ -713,7 +698,7 @@ class PointVisualizer {
         this.ctx.lineTo(sc.x, sc.y);
       }
       this.ctx.closePath();
-      this.ctx.fillStyle = 'rgba(16, 185, 129, 0.15)'; // Green tint
+      this.ctx.fillStyle = 'rgba(16, 185, 129, 0.14)';
       this.ctx.fill();
       this.ctx.strokeStyle = '#10b981';
       this.ctx.lineWidth = 2.5;
@@ -721,7 +706,7 @@ class PointVisualizer {
       this.ctx.restore();
     }
 
-    // 4. Draw Closest Pair segment if computed
+    // 4. Draw Closest Pair
     if (this.closestPair && this.closestPair.length === 2) {
       const [p1, p2] = this.closestPair;
       const sc1 = this.worldToScreen(p1.x, p1.y);
@@ -737,46 +722,63 @@ class PointVisualizer {
       this.ctx.restore();
     }
 
-    // 5. Draw All Points
+    // 5. Draw Points with Clean Legible Pills
     for (const p of this.points) {
       const sc = this.worldToScreen(p.x, p.y);
       const isSelected = this.selectedPoints.includes(p);
       const isHovered = this.hoverPoint === p;
-      const radius = isHovered ? 8 : (isSelected ? 7 : 5.5);
+      const radius = isHovered ? 7.5 : (isSelected ? 7 : 5.5);
 
-      // Outer glow for selected/hovered
+      // Outer glow
       if (isSelected || isHovered) {
         this.ctx.beginPath();
-        this.ctx.arc(sc.x, sc.y, radius + 4, 0, Math.PI * 2);
-        this.ctx.fillStyle = isSelected ? 'rgba(56, 189, 248, 0.3)' : 'rgba(255, 255, 255, 0.2)';
+        this.ctx.arc(sc.x, sc.y, radius + 5, 0, Math.PI * 2);
+        this.ctx.fillStyle = isSelected ? 'rgba(56, 189, 248, 0.35)' : 'rgba(255, 255, 255, 0.18)';
         this.ctx.fill();
       }
 
       // Point circle
       this.ctx.beginPath();
       this.ctx.arc(sc.x, sc.y, radius, 0, Math.PI * 2);
-      this.ctx.fillStyle = isSelected ? '#38bdf8' : (isHovered ? '#7dd3fc' : '#2563eb');
+      this.ctx.fillStyle = isSelected ? '#38bdf8' : (isHovered ? '#7dd3fc' : '#0284c7');
       this.ctx.fill();
       this.ctx.strokeStyle = '#ffffff';
-      this.ctx.lineWidth = 1.5;
+      this.ctx.lineWidth = 1.8;
       this.ctx.stroke();
 
-      // Point Label & Coordinates
+      // Point Label Pill (Never clashes with gridlines!)
       if (this.showLabels) {
-        this.ctx.font = `600 11px var(--font-mono)`;
-        this.ctx.fillStyle = 'var(--text-main)';
+        const labelText = `${p.label} (${p.x}, ${p.y})`;
+        this.ctx.font = '600 11px "JetBrains Mono", Menlo, monospace';
+        const textMetrics = this.ctx.measureText(labelText);
+        const textW = textMetrics.width;
+        const textH = 14;
+
+        const pillX = sc.x + radius + 4;
+        const pillY = sc.y - textH / 2 - 2;
+
+        // Draw pill background
+        this.ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+        this.ctx.strokeStyle = '#334155';
+        this.ctx.lineWidth = 1;
+        this.ctx.beginPath();
+        this.ctx.roundRect(pillX - 4, pillY - 2, textW + 8, textH + 4, 4);
+        this.ctx.fill();
+        this.ctx.stroke();
+
+        // Draw label text
+        this.ctx.fillStyle = '#f8fafc';
         this.ctx.textAlign = 'left';
         this.ctx.textBaseline = 'middle';
-        const labelText = `${p.label} (${p.x}, ${p.y})`;
-        this.ctx.fillText(labelText, sc.x + radius + 4, sc.y - 2);
+        this.ctx.fillText(labelText, pillX, pillY + textH / 2);
       }
     }
   }
 
   renderAxesAndGrid(width, height) {
-    // Determine tick interval based on scale (Desmos adaptive grid logic)
-    const targetPx = 60;
-    const rawInterval = targetPx / this.scale;
+    // Dynamic tick spacing with minimum 75px between numbers (Desmos style)
+    const minPxGap = 75;
+    const rawInterval = minPxGap / this.scale;
     const power = Math.pow(10, Math.floor(Math.log10(rawInterval)));
     const normalized = rawInterval / power;
     let step = power;
@@ -787,9 +789,9 @@ class PointVisualizer {
     const subStep = step / 5;
 
     // 1. Minor Grid Lines
-    if (subStep * this.scale > 10) {
+    if (subStep * this.scale > 12) {
       this.ctx.save();
-      this.ctx.strokeStyle = 'rgba(100, 116, 139, 0.08)';
+      this.ctx.strokeStyle = 'rgba(148, 163, 184, 0.05)';
       this.ctx.lineWidth = 1;
       this.ctx.beginPath();
 
@@ -816,10 +818,10 @@ class PointVisualizer {
 
     // 2. Major Grid Lines & Numbers
     this.ctx.save();
-    this.ctx.strokeStyle = 'rgba(100, 116, 139, 0.2)';
+    this.ctx.strokeStyle = 'rgba(148, 163, 184, 0.14)';
     this.ctx.lineWidth = 1;
-    this.ctx.fillStyle = 'var(--text-muted)';
-    this.ctx.font = '500 10.5px var(--font-mono)';
+    this.ctx.fillStyle = '#94a3b8';
+    this.ctx.font = '500 11px "JetBrains Mono", Menlo, monospace';
 
     const startX = Math.floor(-this.originX / (step * this.scale)) * step;
     const endX = Math.ceil((width - this.originX) / (step * this.scale)) * step;
@@ -834,7 +836,8 @@ class PointVisualizer {
       if (Math.abs(x) > 1e-9) {
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'top';
-        const labelY = Math.max(16, Math.min(height - 16, this.originY + 4));
+        // Keep tick label attached to axis or clamped to screen margin
+        const labelY = Math.max(12, Math.min(height - 24, this.originY + 6));
         this.ctx.fillText(Number(x.toFixed(4)), sx, labelY);
       }
     }
@@ -852,7 +855,7 @@ class PointVisualizer {
       if (Math.abs(y) > 1e-9) {
         this.ctx.textAlign = 'right';
         this.ctx.textBaseline = 'middle';
-        const labelX = Math.max(28, Math.min(width - 6, this.originX - 6));
+        const labelX = Math.max(34, Math.min(width - 8, this.originX - 8));
         this.ctx.fillText(Number(y.toFixed(4)), labelX, sy);
       }
     }
@@ -860,8 +863,8 @@ class PointVisualizer {
 
     // 3. Main Axes (X = 0, Y = 0)
     this.ctx.save();
-    this.ctx.strokeStyle = 'rgba(148, 163, 184, 0.7)';
-    this.ctx.lineWidth = 1.8;
+    this.ctx.strokeStyle = '#64748b';
+    this.ctx.lineWidth = 2;
 
     // X Axis
     this.ctx.beginPath();
@@ -875,12 +878,12 @@ class PointVisualizer {
     this.ctx.lineTo(this.originX, height);
     this.ctx.stroke();
 
-    // Origin label (0, 0)
-    this.ctx.fillStyle = 'var(--text-muted)';
-    this.ctx.font = '600 10.5px var(--font-mono)';
+    // Origin (0, 0)
+    this.ctx.fillStyle = '#94a3b8';
+    this.ctx.font = '600 11px "JetBrains Mono", Menlo, monospace';
     this.ctx.textAlign = 'right';
     this.ctx.textBaseline = 'top';
-    this.ctx.fillText('0', this.originX - 4, this.originY + 4);
+    this.ctx.fillText('0', this.originX - 6, this.originY + 6);
 
     this.ctx.restore();
   }

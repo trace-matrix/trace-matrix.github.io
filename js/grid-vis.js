@@ -1,6 +1,6 @@
 /**
  * TraceMatrix — Grid & Matrix Visualizer (GridVis)
- * Fast 2D array, DP table, BFS/DFS pathfinding, and 2D prefix sums visualizer.
+ * Ultra-clean 2D array, DP table, BFS/DFS pathfinding, and 2D prefix sums visualizer.
  */
 
 class GridVisualizer {
@@ -11,27 +11,26 @@ class GridVisualizer {
 
     this.rows = 10;
     this.cols = 10;
-    this.cellSize = 48; // base cell size in px
+    this.cellSize = 52; // clean square cell size
 
     // Viewport transform
     this.panX = 40;
     this.panY = 40;
     this.zoom = 1.0;
 
-    // Grid data: 2D array of Cell objects
-    // Cell: { val: string|number, type: 'empty'|'wall'|'start'|'end', dist: null, inPath: false, visited: false }
+    // Grid data
     this.grid = [];
     this.initGrid(this.rows, this.cols);
 
     // Interaction state
-    this.activeTool = 'inspect'; // 'inspect', 'submatrix', 'wall', 'start', 'end', 'edit'
+    this.activeTool = 'inspect';
     this.isDragging = false;
     this.isPanning = false;
     this.lastMouseX = 0;
     this.lastMouseY = 0;
     this.hoverCell = null;
 
-    // Submatrix selection: { r1, c1, r2, c2 }
+    // Submatrix selection
     this.submatrix = null;
     this.isSelectingSubmatrix = false;
     this.subStart = null;
@@ -39,6 +38,7 @@ class GridVisualizer {
     // Visualization modes
     this.showHeatmap = false;
     this.showPrefixOverlay = false;
+    this.showSubscripts = false; // clean view by default
     this.is8Directional = false;
 
     // Pathfinding state
@@ -102,9 +102,10 @@ class GridVisualizer {
     const rect = this.container.getBoundingClientRect();
     const totalW = this.cols * this.cellSize;
     const totalH = this.rows * this.cellSize;
-    const scaleX = (rect.width - 80) / totalW;
-    const scaleY = (rect.height - 80) / totalH;
-    this.zoom = Math.max(0.2, Math.min(2.5, Math.min(scaleX, scaleY)));
+    const pad = 60;
+    const scaleX = (rect.width - pad * 2) / totalW;
+    const scaleY = (rect.height - pad * 2) / totalH;
+    this.zoom = Math.max(0.2, Math.min(2.0, Math.min(scaleX, scaleY)));
     this.panX = Math.round((rect.width - totalW * this.zoom) / 2);
     this.panY = Math.round((rect.height - totalH * this.zoom) / 2);
     this.updateStatusPill();
@@ -127,7 +128,7 @@ class GridVisualizer {
 
     // Tools Buttons
     document.querySelectorAll('[data-grid-tool]').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+      btn.addEventListener('click', () => {
         document.querySelectorAll('[data-grid-tool]').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         this.activeTool = btn.dataset.gridTool;
@@ -164,6 +165,10 @@ class GridVisualizer {
       this.showHeatmap = e.target.checked;
       this.render();
     });
+    document.getElementById('toggle-subscripts')?.addEventListener('change', (e) => {
+      this.showSubscripts = e.target.checked;
+      this.render();
+    });
     document.getElementById('grid-8dir')?.addEventListener('change', (e) => {
       this.is8Directional = e.target.checked;
     });
@@ -198,7 +203,7 @@ class GridVisualizer {
     const rect = this.container.getBoundingClientRect();
     const cx = rect.width / 2;
     const cy = rect.height / 2;
-    const newZoom = Math.max(0.2, Math.min(4.0, this.zoom * factor));
+    const newZoom = Math.max(0.2, Math.min(3.5, this.zoom * factor));
     this.panX = cx - (cx - this.panX) * (newZoom / this.zoom);
     this.panY = cy - (cy - this.panY) * (newZoom / this.zoom);
     this.zoom = newZoom;
@@ -212,7 +217,7 @@ class GridVisualizer {
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
     const factor = e.deltaY < 0 ? 1.12 : 0.89;
-    const newZoom = Math.max(0.2, Math.min(4.0, this.zoom * factor));
+    const newZoom = Math.max(0.2, Math.min(3.5, this.zoom * factor));
 
     this.panX = mouseX - (mouseX - this.panX) * (newZoom / this.zoom);
     this.panY = mouseY - (mouseY - this.panY) * (newZoom / this.zoom);
@@ -223,10 +228,9 @@ class GridVisualizer {
   }
 
   screenToGrid(sx, sy) {
-    const x = (sx - this.panX) / (this.cellSize * this.zoom);
-    const y = (sy - this.panY) / (this.cellSize * this.zoom);
-    const col = Math.floor(x);
-    const row = Math.floor(y);
+    const cs = this.cellSize * this.zoom;
+    const col = Math.floor((sx - this.panX) / cs);
+    const row = Math.floor((sy - this.panY) / cs);
     if (row >= 0 && row < this.rows && col >= 0 && col < this.cols) {
       return { row, col };
     }
@@ -234,14 +238,14 @@ class GridVisualizer {
   }
 
   handleMouseDown(e) {
-    if (e.button === 1 || e.code === 'Space' || e.shiftKey) { // Middle click or Space+click: Pan
+    if (e.button === 1 || e.code === 'Space' || e.shiftKey) {
       this.isPanning = true;
       this.lastMouseX = e.clientX;
       this.lastMouseY = e.clientY;
       return;
     }
 
-    if (e.button !== 0) return; // Left click only
+    if (e.button !== 0) return;
 
     const rect = this.container.getBoundingClientRect();
     const cell = this.screenToGrid(e.clientX - rect.left, e.clientY - rect.top);
@@ -259,7 +263,6 @@ class GridVisualizer {
       this.applyToolToCell(cell.row, cell.col);
       this.render();
     } else {
-      // Clicked outside grid: start panning
       this.isPanning = true;
       this.lastMouseX = e.clientX;
       this.lastMouseY = e.clientY;
@@ -294,7 +297,7 @@ class GridVisualizer {
       this.submatrix = { r1, c1, r2, c2 };
       this.updateSubmatrixStats();
       this.render();
-    } else if (this.isDragging && cell && (this.activeTool === 'wall')) {
+    } else if (this.isDragging && cell && this.activeTool === 'wall') {
       this.applyToolToCell(cell.row, cell.col);
       this.render();
     } else {
@@ -311,7 +314,6 @@ class GridVisualizer {
   applyToolToCell(r, c) {
     const cell = this.grid[r][c];
     if (this.activeTool === 'inspect') {
-      // Just inspect
       this.submatrix = { r1: r, c1: c, r2: r, c2: c };
       this.updateSubmatrixStats();
     } else if (this.activeTool === 'wall') {
@@ -323,7 +325,6 @@ class GridVisualizer {
         cell.val = '#';
       }
     } else if (this.activeTool === 'start') {
-      // Clear previous start
       for (let i = 0; i < this.rows; i++) {
         for (let j = 0; j < this.cols; j++) {
           if (this.grid[i][j].type === 'start') {
@@ -335,7 +336,6 @@ class GridVisualizer {
       cell.type = 'start';
       cell.val = 'S';
     } else if (this.activeTool === 'end') {
-      // Clear previous end
       for (let i = 0; i < this.rows; i++) {
         for (let j = 0; j < this.cols; j++) {
           if (this.grid[i][j].type === 'end') {
@@ -387,7 +387,6 @@ class GridVisualizer {
   }
 
   computePrefixSums() {
-    // 2D Prefix Sum array: (rows + 1) x (cols + 1) using 1-based indexing
     const P = Array.from({ length: this.rows + 1 }, () => Array(this.cols + 1).fill(0));
     for (let i = 1; i <= this.rows; i++) {
       for (let j = 1; j <= this.cols; j++) {
@@ -446,7 +445,6 @@ class GridVisualizer {
       }
     }
 
-    // 2D Prefix Sum Formula Breakdown
     if (breakdownEl) {
       const P = this.computePrefixSums();
       const R2 = r2 + 1;
@@ -473,7 +471,6 @@ class GridVisualizer {
     }
   }
 
-  // Pathfinding (BFS / DFS / Multi-source BFS)
   runPathfinding() {
     const algo = document.getElementById('grid-algo-select')?.value || 'bfs';
     let start = null;
@@ -549,7 +546,6 @@ class GridVisualizer {
       }
     }
 
-    // Trace shortest path back
     let pathLen = 0;
     if (found) {
       let curr = [end.r, end.c];
@@ -558,7 +554,7 @@ class GridVisualizer {
         pathLen++;
         curr = parent[curr[0]][curr[1]];
       }
-      pathLen -= 1; // edges count
+      pathLen -= 1;
     }
 
     this.showPathStats(found, pathLen, visitedCount);
@@ -676,7 +672,6 @@ class GridVisualizer {
     this.render();
   }
 
-  // Matrix Transformations
   rotate90CW() {
     const newR = this.cols;
     const newC = this.rows;
@@ -753,11 +748,9 @@ class GridVisualizer {
     window.App?.showToast('Flipped Vertically', 'info');
   }
 
-  // Presets
   loadPreset(type) {
     if (type === 'maze') {
       this.initGrid(12, 16, '.');
-      // Draw interesting maze walls
       for (let r = 2; r < 10; r++) this.grid[r][3] = { val: '#', type: 'wall', dist: null, inPath: false, visited: false };
       for (let c = 3; c < 12; c++) this.grid[9][c] = { val: '#', type: 'wall', dist: null, inPath: false, visited: false };
       for (let r = 3; r < 9; r++) this.grid[r][7] = { val: '#', type: 'wall', dist: null, inPath: false, visited: false };
@@ -767,7 +760,6 @@ class GridVisualizer {
       this.grid[11][15] = { val: 'E', type: 'end', dist: null, inPath: false, visited: false };
       window.App?.showToast('Maze preset loaded', 'info');
     } else if (type === 'dp') {
-      // DP Table for LCS of "ALGORITHM" and "LOGIC"
       const s1 = "ALGORITHM";
       const s2 = "LOGIC";
       const R = s1.length + 1;
@@ -822,7 +814,6 @@ class GridVisualizer {
     this.fitGrid();
   }
 
-  // Parse Raw CP Input
   parseRawInput() {
     const raw = document.getElementById('grid-raw-input')?.value.trim();
     if (!raw) {
@@ -837,7 +828,6 @@ class GridVisualizer {
     let targetR = lines.length;
     let targetC = null;
 
-    // Check if line 1 has "R C"
     const firstTokens = lines[0].split(/\s+/);
     if (firstTokens.length === 2 && !isNaN(firstTokens[0]) && !isNaN(firstTokens[1])) {
       targetR = parseInt(firstTokens[0]);
@@ -870,7 +860,7 @@ class GridVisualizer {
         if (!isNaN(num) && item !== '') {
           this.grid[r][c].val = num;
           this.grid[r][c].type = 'empty';
-        } else if (item === '#' || item === '1' && matrixData[r].every(x => x === '0' || x === '1')) {
+        } else if (item === '#' || (item === '1' && matrixData[r].every(x => x === '0' || x === '1'))) {
           this.grid[r][c].val = '#';
           this.grid[r][c].type = 'wall';
         } else if (item === 'S' || item === 's') {
@@ -903,7 +893,10 @@ class GridVisualizer {
     });
   }
 
-  // Canvas Rendering
+  // ==========================================
+  // RENDERING (Clean Modern Obsidian Grid)
+  // ==========================================
+
   render() {
     if (!this.ctx || !this.container) return;
     const rect = this.container.getBoundingClientRect();
@@ -912,10 +905,6 @@ class GridVisualizer {
 
     this.ctx.clearRect(0, 0, width, height);
 
-    // Background Grid Dots/Gridlines
-    this.renderBackgroundGrid(width, height);
-
-    // Compute min/max for heatmap if active
     let minVal = Infinity, maxVal = -Infinity;
     if (this.showHeatmap) {
       for (let r = 0; r < this.rows; r++) {
@@ -936,69 +925,73 @@ class GridVisualizer {
     this.ctx.save();
     this.ctx.translate(this.panX, this.panY);
 
-    // 1. Render Cells
+    // 1. Draw Clean Grid Cells
     for (let r = 0; r < this.rows; r++) {
       for (let c = 0; c < this.cols; c++) {
         const x = c * cs;
         const y = r * cs;
         const cell = this.grid[r][c];
 
-        // Background Color
-        let fillColor = 'var(--bg-surface)';
+        // Clean Modern Dark Card Fill
+        let fillColor = '#161e2e'; // clean deep slate
+        let textColor = '#f1f5f9'; // bright crisp text
+
         if (cell.type === 'wall') {
-          fillColor = '#1f2937'; // dark wall
+          fillColor = '#0b0f19'; // dark wall
+          textColor = '#64748b';
         } else if (cell.type === 'start') {
-          fillColor = '#059669'; // Emerald start
+          fillColor = '#059669'; // Emerald
+          textColor = '#ffffff';
         } else if (cell.type === 'end') {
-          fillColor = '#dc2626'; // Red target
+          fillColor = '#e11d48'; // Rose Red
+          textColor = '#ffffff';
         } else if (cell.inPath) {
-          fillColor = '#fbbf24'; // Golden shortest path
+          fillColor = '#d97706'; // Amber path
+          textColor = '#ffffff';
         } else if (cell.visited) {
-          fillColor = 'rgba(56, 189, 248, 0.25)'; // visited cyan
+          fillColor = 'rgba(14, 165, 233, 0.22)';
+          textColor = '#38bdf8';
         } else if (this.showHeatmap && typeof cell.val === 'number' && maxVal > minVal) {
           const ratio = (cell.val - minVal) / (maxVal - minVal);
-          fillColor = `rgba(59, 130, 246, ${0.15 + ratio * 0.75})`;
+          fillColor = `rgba(56, 189, 248, ${0.15 + ratio * 0.75})`;
+          textColor = ratio > 0.6 ? '#ffffff' : '#e0f2fe';
         }
 
-        // Draw Cell Background
+        // Cell rect
         this.ctx.fillStyle = fillColor;
         this.ctx.fillRect(x, y, cs, cs);
 
-        // Draw Cell Border
-        this.ctx.strokeStyle = 'rgba(100, 116, 139, 0.25)';
+        // Crisp border
+        this.ctx.strokeStyle = '#273549';
         this.ctx.lineWidth = 1;
         this.ctx.strokeRect(x, y, cs, cs);
 
-        // Cell Text Value
-        const fontSize = Math.max(9, Math.min(18, cs * 0.36));
-        this.ctx.font = `600 ${fontSize}px var(--font-mono)`;
+        // Cell Center Value
+        const fontSize = Math.max(10, Math.min(20, cs * 0.36));
+        this.ctx.font = `600 ${fontSize}px "JetBrains Mono", Menlo, monospace`;
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
+        this.ctx.fillStyle = textColor;
 
         if (cell.type === 'wall') {
-          this.ctx.fillStyle = '#9ca3af';
           this.ctx.fillText('#', x + cs / 2, y + cs / 2);
         } else if (cell.type === 'start') {
-          this.ctx.fillStyle = '#ffffff';
           this.ctx.fillText('S', x + cs / 2, y + cs / 2);
         } else if (cell.type === 'end') {
-          this.ctx.fillStyle = '#ffffff';
           this.ctx.fillText('E', x + cs / 2, y + cs / 2);
         } else if (cell.inPath) {
-          this.ctx.fillStyle = '#000000';
           this.ctx.fillText(cell.dist !== null ? cell.dist : cell.val, x + cs / 2, y + cs / 2);
         } else {
-          this.ctx.fillStyle = 'var(--text-main)';
           const text = this.showPrefixOverlay ? P[r + 1][c + 1] : cell.val;
           this.ctx.fillText(text, x + cs / 2, y + cs / 2);
         }
 
-        // Cell coordinate subscript (if zoom is large enough)
-        if (cs >= 40) {
+        // Coordinate subscripts (only if explicitly toggled on)
+        if (this.showSubscripts && cs >= 42) {
           const rDisp = isOneIdx ? r + 1 : r;
           const cDisp = isOneIdx ? c + 1 : c;
-          this.ctx.font = `400 ${Math.max(8, fontSize * 0.55)}px var(--font-mono)`;
-          this.ctx.fillStyle = cell.type === 'wall' || cell.type === 'start' || cell.type === 'end' ? 'rgba(255,255,255,0.7)' : 'rgba(148, 163, 184, 0.7)';
+          this.ctx.font = `500 ${Math.max(8, fontSize * 0.52)}px "JetBrains Mono", Menlo, monospace`;
+          this.ctx.fillStyle = 'rgba(148, 163, 184, 0.65)';
           this.ctx.textAlign = 'right';
           this.ctx.textBaseline = 'bottom';
           this.ctx.fillText(`${rDisp},${cDisp}`, x + cs - 3, y + cs - 2);
@@ -1006,7 +999,7 @@ class GridVisualizer {
       }
     }
 
-    // 2. Render Submatrix Highlight
+    // 2. Submatrix Highlight
     if (this.submatrix) {
       const { r1, c1, r2, c2 } = this.submatrix;
       const sx = c1 * cs;
@@ -1014,77 +1007,59 @@ class GridVisualizer {
       const sw = (c2 - c1 + 1) * cs;
       const sh = (r2 - r1 + 1) * cs;
 
-      // Glow fill
-      this.ctx.fillStyle = 'rgba(37, 99, 235, 0.2)';
+      this.ctx.fillStyle = 'rgba(56, 189, 248, 0.18)';
       this.ctx.fillRect(sx, sy, sw, sh);
 
-      // Border with dash
-      this.ctx.strokeStyle = 'var(--accent)';
+      this.ctx.strokeStyle = '#38bdf8';
       this.ctx.lineWidth = 2.5;
       this.ctx.strokeRect(sx, sy, sw, sh);
     }
 
-    // 3. Render Hovered Cell border
+    // 3. Hovered Cell border
     if (this.hoverCell) {
       const hx = this.hoverCell.col * cs;
       const hy = this.hoverCell.row * cs;
-      this.ctx.strokeStyle = 'var(--accent)';
+      this.ctx.strokeStyle = '#38bdf8';
       this.ctx.lineWidth = 2;
       this.ctx.strokeRect(hx, hy, cs, cs);
     }
 
-    // 4. Render Row & Col Headers
+    // 4. Row & Col Headers
     this.renderHeaders(cs, isOneIdx);
 
     this.ctx.restore();
   }
 
   renderHeaders(cs, isOneIdx) {
-    const headerFont = `600 ${Math.max(9, Math.min(13, cs * 0.3))}px var(--font-mono)`;
+    const headerFont = `600 ${Math.max(10, Math.min(13, cs * 0.28))}px "JetBrains Mono", Menlo, monospace`;
     this.ctx.font = headerFont;
-    this.ctx.fillStyle = 'var(--text-muted)';
 
     // Column Headers (Top)
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'bottom';
     for (let c = 0; c < this.cols; c++) {
+      const isHoveredCol = this.hoverCell && this.hoverCell.col === c;
+      this.ctx.fillStyle = isHoveredCol ? '#38bdf8' : '#94a3b8';
       const label = isOneIdx ? c + 1 : c;
       const x = c * cs + cs / 2;
-      this.ctx.fillText(label, x, -6);
+      this.ctx.fillText(label, x, -8);
     }
 
     // Row Headers (Left)
     this.ctx.textAlign = 'right';
     this.ctx.textBaseline = 'middle';
     for (let r = 0; r < this.rows; r++) {
+      const isHoveredRow = this.hoverCell && this.hoverCell.row === r;
+      this.ctx.fillStyle = isHoveredRow ? '#38bdf8' : '#94a3b8';
       const label = isOneIdx ? r + 1 : r;
       const y = r * cs + cs / 2;
-      this.ctx.fillText(label, -8, y);
+      this.ctx.fillText(label, -10, y);
     }
-  }
 
-  renderBackgroundGrid(width, height) {
-    const gridSize = 24 * this.zoom;
-    if (gridSize < 8) return;
-
-    this.ctx.save();
-    this.ctx.strokeStyle = 'rgba(100, 116, 139, 0.08)';
-    this.ctx.lineWidth = 1;
-
-    const startX = this.panX % gridSize;
-    const startY = this.panY % gridSize;
-
-    this.ctx.beginPath();
-    for (let x = startX; x < width; x += gridSize) {
-      this.ctx.moveTo(x, 0);
-      this.ctx.lineTo(x, height);
-    }
-    for (let y = startY; y < height; y += gridSize) {
-      this.ctx.moveTo(0, y);
-      this.ctx.lineTo(width, y);
-    }
-    this.ctx.stroke();
-    this.ctx.restore();
+    // Grid Outer Border
+    this.ctx.strokeStyle = '#374151';
+    this.ctx.lineWidth = 2;
+    this.ctx.strokeRect(0, 0, this.cols * cs, this.rows * cs);
   }
 }
 

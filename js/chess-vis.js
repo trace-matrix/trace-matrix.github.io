@@ -1,6 +1,6 @@
 /**
  * TraceMatrix — Chess & Board Visualizer (ChessVis)
- * Custom N x M Chessboard, Knight Moves BFS Reachability, N-Queens Backtracking, and Distance Overlays.
+ * Tournament-grade N x M Chessboard, Knight Moves BFS Reachability, N-Queens Backtracking, and Distance Overlays.
  */
 
 class ChessVisualizer {
@@ -86,11 +86,13 @@ class ChessVisualizer {
     const rect = this.container.getBoundingClientRect();
     const totalW = this.cols * this.squareSize;
     const totalH = this.rows * this.squareSize;
-    const scaleX = (rect.width - 80) / totalW;
-    const scaleY = (rect.height - 80) / totalH;
-    this.zoom = Math.max(0.2, Math.min(2.0, Math.min(scaleX, scaleY)));
+    const pad = 60;
+    const scaleX = (rect.width - pad * 2) / totalW;
+    const scaleY = (rect.height - pad * 2) / totalH;
+    this.zoom = Math.max(0.3, Math.min(1.8, Math.min(scaleX, scaleY)));
     this.panX = Math.round((rect.width - totalW * this.zoom) / 2);
     this.panY = Math.round((rect.height - totalH * this.zoom) / 2);
+    this.updateStatusPill();
     this.render();
   }
 
@@ -101,6 +103,7 @@ class ChessVisualizer {
     const totalH = this.rows * this.squareSize;
     this.panX = Math.round((rect.width - totalW) / 2);
     this.panY = Math.round((rect.height - totalH) / 2);
+    this.updateStatusPill();
     this.render();
   }
 
@@ -180,6 +183,7 @@ class ChessVisualizer {
     this.panX = cx - (cx - this.panX) * (newZoom / this.zoom);
     this.panY = cy - (cy - this.panY) * (newZoom / this.zoom);
     this.zoom = newZoom;
+    this.updateStatusPill();
     this.render();
   }
 
@@ -195,6 +199,7 @@ class ChessVisualizer {
     this.panY = my - (my - this.panY) * (newZoom / this.zoom);
     this.zoom = newZoom;
 
+    this.updateStatusPill();
     this.render();
   }
 
@@ -325,9 +330,7 @@ class ChessVisualizer {
   // CP PROBLEM SOLVERS
   // ==========================================
 
-  // 1. Knight BFS Shortest Path & Reachability
   triggerKnightBFS() {
-    // Find knight on board or use selected square
     let start = null;
     if (this.selectedSquare) {
       start = this.selectedSquare;
@@ -344,7 +347,6 @@ class ChessVisualizer {
     }
 
     if (!start) {
-      // Place knight at (0, 0)
       start = { r: 0, c: 0 };
       this.board[0][0].piece = 'N';
     }
@@ -352,7 +354,7 @@ class ChessVisualizer {
     this.knightStart = start;
     this.computeKnightBFS(start.r, start.c);
     this.render();
-    window.App?.showToast(`Computed Knight reachability from ${this.getSquareNotation(start.r, start.c)}. Click any target to draw path!`, 'success');
+    window.App?.showToast(`Computed Knight reachability from ${this.getSquareNotation(start.r, start.c)}. Click any square to draw path!`, 'success');
   }
 
   computeKnightBFS(sr, sc) {
@@ -402,7 +404,6 @@ class ChessVisualizer {
     window.App?.showToast(`Knight shortest path: ${moves} move${moves !== 1 ? 's' : ''}`, 'info');
   }
 
-  // 2. N-Queens Backtracking Solver
   solveNQueens() {
     if (this.rows !== this.cols) {
       window.App?.showToast('N-Queens requires a square board (N × N). Setting to 8×8', 'info');
@@ -501,7 +502,6 @@ class ChessVisualizer {
     }
   }
 
-  // 3. Knight's Tour (Warnsdorff's Algorithm)
   solveKnightsTour() {
     const N = this.rows;
     const M = this.cols;
@@ -546,7 +546,7 @@ class ChessVisualizer {
         }
       }
 
-      if (nextR === -1) break; // Cannot proceed
+      if (nextR === -1) break;
       visited[nextR][nextC] = step;
       moves.push([nextR, nextC]);
       curR = nextR;
@@ -575,7 +575,7 @@ class ChessVisualizer {
   }
 
   // ==========================================
-  // RENDERING
+  // RENDERING (Clean Tournament Chessboard)
   // ==========================================
 
   render() {
@@ -599,24 +599,25 @@ class ChessVisualizer {
         const y = r * sz;
         const isLight = (r + c) % 2 === 0;
 
-        // Base square color
-        let sqColor = isLight ? '#f0d9b5' : '#b58863'; // Classic wood chess theme
+        // Tournament Colors: Cream & Forest Green
+        let sqColor = isLight ? '#eeeed2' : '#769656';
 
-        // Overlay Coloring
+        // Overlays
         if (this.knightDistances) {
           const d = this.knightDistances[r][c];
           if (d === 0) {
-            sqColor = '#10b981'; // Green knight origin
+            sqColor = '#10b981'; // Green origin
           } else if (d !== Infinity) {
-            const alpha = Math.max(0.1, 0.7 - d * 0.1);
-            sqColor = `rgba(56, 189, 248, ${alpha})`;
+            // Soft gradient by distance
+            const alpha = Math.max(0.2, 0.75 - d * 0.1);
+            sqColor = `rgba(14, 165, 233, ${alpha})`;
           }
         } else if (this.activeOverlay === 'manhattan' && this.selectedSquare) {
           const d = Math.abs(r - this.selectedSquare.r) + Math.abs(c - this.selectedSquare.c);
-          sqColor = `rgba(99, 102, 241, ${0.1 + (d % 4) * 0.2})`;
+          sqColor = `rgba(99, 102, 241, ${0.15 + (d % 4) * 0.2})`;
         } else if (this.activeOverlay === 'chebyshev' && this.selectedSquare) {
           const d = Math.max(Math.abs(r - this.selectedSquare.r), Math.abs(c - this.selectedSquare.c));
-          sqColor = `rgba(245, 158, 11, ${0.1 + (d % 3) * 0.25})`;
+          sqColor = `rgba(245, 158, 11, ${0.15 + (d % 3) * 0.25})`;
         } else if (this.activeOverlay === 'bipartite') {
           sqColor = isLight ? '#93c5fd' : '#fca5a5';
         }
@@ -624,16 +625,17 @@ class ChessVisualizer {
         this.ctx.fillStyle = sqColor;
         this.ctx.fillRect(x, y, sz, sz);
 
-        // Grid border
-        this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)';
+        // Thin subtle square grid line
+        this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.08)';
         this.ctx.lineWidth = 1;
         this.ctx.strokeRect(x, y, sz, sz);
 
-        // Distance numbers (Knight BFS)
-        if (this.knightDistances && sz >= 32) {
+        // Knight BFS distance numbers
+        if (this.knightDistances) {
           const d = this.knightDistances[r][c];
-          this.ctx.font = `700 ${Math.max(10, sz * 0.35)}px var(--font-mono)`;
-          this.ctx.fillStyle = '#1e293b';
+          const distFontSize = Math.max(11, Math.min(22, sz * 0.38));
+          this.ctx.font = `700 ${distFontSize}px "JetBrains Mono", Menlo, monospace`;
+          this.ctx.fillStyle = d === 0 ? '#ffffff' : '#0f172a';
           this.ctx.textAlign = 'center';
           this.ctx.textBaseline = 'middle';
           this.ctx.fillText(d !== Infinity ? d : '∞', x + sz / 2, y + sz / 2);
@@ -644,20 +646,10 @@ class ChessVisualizer {
         if (piece && !this.knightDistances) {
           this.renderPieceGlyph(piece, x + sz / 2, y + sz / 2, sz);
         }
-
-        // Square notation label (in corner of squares if zoom permits)
-        if (sz >= 44 && !this.knightDistances) {
-          this.ctx.font = `600 ${Math.max(8, sz * 0.18)}px var(--font-mono)`;
-          this.ctx.fillStyle = isLight ? 'rgba(181, 136, 99, 0.8)' : 'rgba(240, 217, 181, 0.8)';
-          this.ctx.textAlign = 'right';
-          this.ctx.textBaseline = 'bottom';
-          const notat = this.getSquareNotation(r, c);
-          this.ctx.fillText(notat, x + sz - 2, y + sz - 2);
-        }
       }
     }
 
-    // 2. Draw Knight Tour Lines & Step Numbers
+    // 2. Knight Tour Lines & Step Pills
     if (this.knightsTourMoves && this.knightsTourMoves.length > 1) {
       this.ctx.save();
       this.ctx.strokeStyle = '#ef4444';
@@ -672,7 +664,6 @@ class ChessVisualizer {
       }
       this.ctx.stroke();
 
-      // Number pills
       for (let i = 0; i < this.knightsTourMoves.length; i++) {
         const m = this.knightsTourMoves[i];
         const cx = m[1] * sz + sz / 2;
@@ -683,7 +674,7 @@ class ChessVisualizer {
         this.ctx.fill();
 
         this.ctx.fillStyle = '#ffffff';
-        this.ctx.font = `700 ${Math.max(8, sz * 0.2)}px var(--font-mono)`;
+        this.ctx.font = `700 ${Math.max(8, sz * 0.2)}px "JetBrains Mono", Menlo, monospace`;
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
         this.ctx.fillText(i + 1, cx, cy);
@@ -691,7 +682,7 @@ class ChessVisualizer {
       this.ctx.restore();
     }
 
-    // 3. Draw Knight Path Arrows
+    // 3. Knight Path Arrows
     if (this.knightPath && this.knightPath.length > 1) {
       this.ctx.save();
       this.ctx.strokeStyle = '#2563eb';
@@ -712,12 +703,12 @@ class ChessVisualizer {
     if (this.hoverSquare) {
       const hx = this.hoverSquare.c * sz;
       const hy = this.hoverSquare.r * sz;
-      this.ctx.strokeStyle = 'var(--accent)';
+      this.ctx.strokeStyle = '#38bdf8';
       this.ctx.lineWidth = 2.5;
       this.ctx.strokeRect(hx, hy, sz, sz);
     }
 
-    // 5. Board Outer Border & Rank/File Headers
+    // 5. Clean Outer Board Border & Rank/File Headers
     this.renderBoardHeaders(sz, isOneIdx);
 
     this.ctx.restore();
@@ -733,21 +724,23 @@ class ChessVisualizer {
       'P': '♟'
     };
     const symbol = glyphs[p] || p;
-    this.ctx.font = `${sz * 0.65}px sans-serif`;
+    const pieceFontSize = Math.max(16, sz * 0.65);
+    this.ctx.font = `${pieceFontSize}px sans-serif`;
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
-    this.ctx.fillStyle = '#1e1b18'; // dark chess piece
-    this.ctx.shadowColor = 'rgba(255,255,255,0.7)';
-    this.ctx.shadowBlur = 4;
+    this.ctx.fillStyle = '#18181b';
+    this.ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
+    this.ctx.shadowBlur = 3;
     this.ctx.fillText(symbol, cx, cy);
     this.ctx.shadowBlur = 0;
   }
 
   renderBoardHeaders(sz, isOneIdx) {
-    this.ctx.font = `600 ${Math.max(9, Math.min(13, sz * 0.28))}px var(--font-mono)`;
-    this.ctx.fillStyle = 'var(--text-muted)';
+    const headerFontSize = Math.max(10, Math.min(13, sz * 0.26));
+    this.ctx.font = `600 ${headerFontSize}px "JetBrains Mono", Menlo, monospace`;
+    this.ctx.fillStyle = '#94a3b8';
 
-    // Column Labels (top)
+    // File Letters (top)
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'bottom';
     for (let c = 0; c < this.cols; c++) {
@@ -756,10 +749,10 @@ class ChessVisualizer {
         label = String.fromCharCode(97 + c);
       }
       const x = c * sz + sz / 2;
-      this.ctx.fillText(label, x, -6);
+      this.ctx.fillText(label, x, -8);
     }
 
-    // Row Labels (left)
+    // Rank Numbers (left)
     this.ctx.textAlign = 'right';
     this.ctx.textBaseline = 'middle';
     for (let r = 0; r < this.rows; r++) {
@@ -768,8 +761,13 @@ class ChessVisualizer {
         label = this.rows - r;
       }
       const y = r * sz + sz / 2;
-      this.ctx.fillText(label, -8, y);
+      this.ctx.fillText(label, -10, y);
     }
+
+    // Board Outer Border
+    this.ctx.strokeStyle = '#475569';
+    this.ctx.lineWidth = 2;
+    this.ctx.strokeRect(0, 0, this.cols * sz, this.rows * sz);
   }
 }
 

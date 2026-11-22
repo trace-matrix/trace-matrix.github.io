@@ -5,13 +5,14 @@
 
 class AppCoordinator {
   constructor() {
-    this.isOneIndexed = false; // default 0-indexed for C++/Python
-    this.currentTab = 'grid'; // 'grid', 'point', 'chess', 'snippets'
+    this.isOneIndexed = false;
+    this.currentTab = 'grid';
 
     this.initTabs();
     this.initIndexToggle();
     this.initThemeToggle();
     this.initShortcutsModal();
+    this.initSidebarCollapse();
     this.initGlobalShortcuts();
 
     // Initialize Subsystem Visualizers
@@ -19,7 +20,6 @@ class AppCoordinator {
     window.pointVis = new PointVisualizer();
     window.chessVis = new ChessVisualizer();
 
-    // Responsive window resize
     window.addEventListener('resize', () => {
       this.refreshCurrentVisualizer();
     });
@@ -57,16 +57,14 @@ class AppCoordinator {
       }
 
       this.currentTab = selectedTab.id.replace('tab-', '');
-      // Trigger canvas resize & render when panel becomes visible
       setTimeout(() => {
         this.refreshCurrentVisualizer();
-      }, 20);
+      }, 30);
     };
 
     tabs.forEach(tab => {
       tab.addEventListener('click', () => selectTab(tab));
 
-      // Arrow key navigation for tabs
       tab.addEventListener('keydown', (e) => {
         let targetIndex = -1;
         const curIndex = tabs.indexOf(tab);
@@ -105,6 +103,41 @@ class AppCoordinator {
   }
 
   // ==========================================
+  // SIDEBAR COLLAPSE TOGGLE
+  // ==========================================
+  initSidebarCollapse() {
+    document.querySelectorAll('.sidebar-collapse-toggle').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const targetId = btn.dataset.toggleSidebar;
+        const sidebar = document.getElementById(targetId);
+        if (sidebar) {
+          sidebar.classList.toggle('collapsed');
+          const isCollapsed = sidebar.classList.contains('collapsed');
+          btn.querySelector('svg').style.transform = isCollapsed ? 'rotate(180deg)' : 'none';
+          btn.title = isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar';
+          setTimeout(() => {
+            this.refreshCurrentVisualizer();
+          }, 260);
+        }
+      });
+    });
+
+    this.toggleCurrentSidebar = () => {
+      const curSidebarId = `sidebar-${this.currentTab}`;
+      const sidebar = document.getElementById(curSidebarId);
+      const btn = document.querySelector(`[data-toggle-sidebar="${curSidebarId}"]`);
+      if (sidebar && btn) {
+        sidebar.classList.toggle('collapsed');
+        const isCollapsed = sidebar.classList.contains('collapsed');
+        btn.querySelector('svg').style.transform = isCollapsed ? 'rotate(180deg)' : 'none';
+        setTimeout(() => {
+          this.refreshCurrentVisualizer();
+        }, 260);
+      }
+    };
+  }
+
+  // ==========================================
   // INDEXING MODE TOGGLE (0-idx vs 1-idx)
   // ==========================================
   initIndexToggle() {
@@ -116,7 +149,6 @@ class AppCoordinator {
       if (btn0) btn0.classList.toggle('active', !oneIndexed);
       if (btn1) btn1.classList.toggle('active', oneIndexed);
 
-      // Re-render active visualizer
       if (window.gridVis) {
         window.gridVis.updateSubmatrixStats();
         window.gridVis.updateStatusPill();
@@ -165,14 +197,12 @@ class AppCoordinator {
       } else if (currentMeta === 'light') {
         nextScheme = 'light dark';
       } else {
-        // From system: pick opposite of system
         const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
         nextScheme = prefersDark ? 'light' : 'dark';
       }
       updateTheme(nextScheme);
     });
 
-    // Handle cross-tab storage changes
     window.addEventListener('storage', (e) => {
       if (e.key === 'color-scheme') {
         if (meta) meta.content = e.newValue || 'light dark';
@@ -199,7 +229,6 @@ class AppCoordinator {
     });
 
     dialog?.addEventListener('click', (e) => {
-      // Close on backdrop click
       const rect = dialog.getBoundingClientRect();
       const inDialog = (
         e.clientX >= rect.left &&
@@ -216,7 +245,6 @@ class AppCoordinator {
   // ==========================================
   initGlobalShortcuts() {
     window.addEventListener('keydown', (e) => {
-      // Don't trigger shortcuts if user is typing in an input or textarea
       const target = e.target;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
         return;
@@ -230,6 +258,8 @@ class AppCoordinator {
         this.selectTabById('tab-chess');
       } else if (e.key === '4') {
         this.selectTabById('tab-snippets');
+      } else if (e.key === 'b' || e.key === 'B') {
+        this.toggleCurrentSidebar();
       } else if (e.key === 'i' || e.key === 'I') {
         this.toggleIndexMode();
       } else if (e.key === '?') {
@@ -275,7 +305,6 @@ class AppCoordinator {
   }
 }
 
-// Instantiate App when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
   window.App = new AppCoordinator();
 });

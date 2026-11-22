@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="color-scheme" content="light dark">
   <script>
-    // FOUC prevention following modern-web-guidance
     try {
       const stored = localStorage.getItem("color-scheme");
       if (stored) {
@@ -14,7 +13,7 @@
     } catch(e) {}
   </script>
   <title>TraceMatrix — Competitive Programming Matrix, Geometry & Chess Visualizer</title>
-  <meta name="description" content="A fast, classic, interactive visualizer for competitive programmers: Matrix & Grids, 2D Prefix Sums, BFS Pathfinding, Coordinate Geometry, Convex Hull, and Chessboard problem solving.">
+  <meta name="description" content="A fast, clean, interactive visualizer for competitive programming: 2D Matrix & Grids, 2D Prefix Sums, BFS Pathfinding, Coordinate Geometry, Convex Hull, and Chessboard problem solving.">
   
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -29,7 +28,7 @@
     <header class="app-header">
       <div class="header-brand">
         <div class="brand-logo" aria-hidden="true">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="3" y="3" width="18" height="18" rx="2"/>
             <line x1="3" y1="9" x2="21" y2="9"/>
             <line x1="3" y1="15" x2="21" y2="15"/>
@@ -48,15 +47,15 @@
         <div class="tablist" focusgroup="tablist nomemory" aria-label="Visualizer Mode Selection">
           <button type="button" id="tab-grid" role="tab" class="nav-tab active" aria-selected="true" focusgroupstart>
             <span class="tab-icon">⊞</span>
-            <span class="tab-label">Matrix & Grid</span>
+            <span class="tab-label">Matrix &amp; Grid</span>
           </button>
           <button type="button" id="tab-point" role="tab" class="nav-tab" aria-selected="false">
             <span class="tab-icon">✛</span>
-            <span class="tab-label">Points & Geometry</span>
+            <span class="tab-label">Points &amp; Geometry</span>
           </button>
           <button type="button" id="tab-chess" role="tab" class="nav-tab" aria-selected="false">
             <span class="tab-icon">♟</span>
-            <span class="tab-label">Chess & Boards</span>
+            <span class="tab-label">Chess &amp; Boards</span>
           </button>
           <button type="button" id="tab-snippets" role="tab" class="nav-tab" aria-selected="false">
             <span class="tab-icon">&lt;/&gt;</span>
@@ -68,7 +67,7 @@
       <!-- Global Actions -->
       <div class="header-actions">
         <!-- Indexing Mode Toggle -->
-        <div class="index-mode-toggle" title="Toggle 0-based vs 1-based indexing for competitive programming coordinates">
+        <div class="index-mode-toggle" title="Toggle 0-based vs 1-based indexing for CP coordinates">
           <button type="button" id="btn-idx-0" class="btn-idx active" data-idx="0">0-idx</button>
           <button type="button" id="btn-idx-1" class="btn-idx" data-idx="1">1-idx</button>
         </div>
@@ -108,7 +107,7 @@
       <section id="panel-grid" role="tabpanel" aria-labelledby="tab-grid" class="tab-panel active" tabindex="0">
         <div class="panel-inner-layout">
           <!-- Left Control Sidebar -->
-          <aside class="sidebar-panel">
+          <aside class="sidebar-panel" id="sidebar-grid">
             <div class="sidebar-section">
               <div class="section-header">
                 <h3>Grid Dimensions</h3>
@@ -168,19 +167,18 @@
                     <option value="multibfs">Multi-source BFS (Distance Field)</option>
                   </select>
                 </div>
-                <div class="checkbox-row">
+                <div class="checkbox-row mt-2">
                   <label class="custom-checkbox">
                     <input type="checkbox" id="grid-8dir">
                     <span class="checkmark"></span>
                     8-Directional (Include Diagonals)
                   </label>
                 </div>
-                <div class="btn-group-row">
+                <div class="btn-group-row mt-2">
                   <button type="button" class="btn btn-accent btn-sm" id="btn-run-pathfinding">▶ Run Path</button>
-                  <button type="button" class="btn btn-secondary btn-sm" id="btn-step-pathfinding">Step</button>
                   <button type="button" class="btn btn-secondary btn-sm" id="btn-clear-path">Clear</button>
                 </div>
-                <div id="pathfinding-stats" class="stats-box hidden">
+                <div id="pathfinding-stats" class="stats-box hidden mt-2">
                   <div class="stat-line"><span>Status:</span> <strong id="stat-path-status">Found</strong></div>
                   <div class="stat-line"><span>Length:</span> <strong id="stat-path-len">0</strong></div>
                   <div class="stat-line"><span>Visited:</span> <strong id="stat-visited-count">0</strong></div>
@@ -196,7 +194,7 @@
               </div>
               <div class="prefix-sums-container">
                 <p class="section-hint">Drag a rectangle on the grid with <strong>Submatrix</strong> tool to query.</p>
-                <div id="submatrix-stats" class="submatrix-stats-box">
+                <div id="submatrix-stats" class="submatrix-stats-box mt-2">
                   <div class="stat-line"><span>Range:</span> <code id="sub-range-text">None selected</code></div>
                   <div class="stat-line"><span>Area:</span> <span id="sub-area-text">0 cells</span></div>
                   <div class="stat-line"><span>Sum:</span> <strong id="sub-sum-text" class="text-accent">0</strong></div>
@@ -211,12 +209,17 @@
                   <label class="custom-checkbox">
                     <input type="checkbox" id="toggle-prefix-overlay">
                     <span class="checkmark"></span>
-                    Show Prefix Table on Grid
+                    Show Prefix Table
                   </label>
                   <label class="custom-checkbox ml-2">
                     <input type="checkbox" id="toggle-heatmap">
                     <span class="checkmark"></span>
-                    Heatmap Values
+                    Heatmap
+                  </label>
+                  <label class="custom-checkbox ml-2">
+                    <input type="checkbox" id="toggle-subscripts">
+                    <span class="checkmark"></span>
+                    (r,c) Subscripts
                   </label>
                 </div>
               </div>
@@ -242,10 +245,9 @@
               <div class="section-header">
                 <h3>CP Judge I/O Parser</h3>
               </div>
-              <p class="section-hint">Paste matrix from Codeforces/LeetCode/CSES:</p>
-              <textarea id="grid-raw-input" class="code-textarea" rows="4" placeholder="3 4&#10;1 2 3 4&#10;5 6 7 8&#10;9 10 11 12&#10;or character grid with . and #"></textarea>
+              <textarea id="grid-raw-input" class="code-textarea" rows="3" placeholder="3 4&#10;1 2 3 4&#10;5 6 7 8&#10;9 10 11 12"></textarea>
               <div class="btn-group-row mt-2">
-                <button type="button" class="btn btn-primary btn-sm" id="btn-parse-grid-input">Load Matrix</button>
+                <button type="button" class="btn btn-primary btn-sm" id="btn-parse-grid-input">Load</button>
                 <button type="button" class="btn btn-secondary btn-sm" id="btn-copy-grid-code">Copy C++ Vector</button>
               </div>
               <div class="presets-row mt-2">
@@ -257,6 +259,13 @@
               </div>
             </div>
           </aside>
+
+          <!-- Collapse Sidebar Toggle Button -->
+          <button type="button" class="sidebar-collapse-toggle" data-toggle-sidebar="sidebar-grid" title="Toggle Sidebar">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+          </button>
 
           <!-- Main Grid Viewport -->
           <div class="viewport-wrapper">
@@ -290,7 +299,7 @@
       <section id="panel-point" role="tabpanel" aria-labelledby="tab-point" class="tab-panel" hidden="until-found" tabindex="0">
         <div class="panel-inner-layout">
           <!-- Point Controls Sidebar -->
-          <aside class="sidebar-panel">
+          <aside class="sidebar-panel" id="sidebar-point">
             <div class="sidebar-section">
               <div class="section-header">
                 <h3>Geometry Tools</h3>
@@ -324,15 +333,15 @@
                   <span class="checkmark"></span>
                   Snap to Integer Coordinates (CP)
                 </label>
-                <label class="custom-checkbox">
+                <label class="custom-checkbox mt-2">
                   <input type="checkbox" id="point-system-toggle">
                   <span class="checkmark"></span>
                   Matrix Coords (Y Points Down)
                 </label>
-                <label class="custom-checkbox">
+                <label class="custom-checkbox mt-2">
                   <input type="checkbox" id="point-show-labels" checked>
                   <span class="checkmark"></span>
-                  Show Point Coordinate Labels
+                  Show Point Labels
                 </label>
               </div>
             </div>
@@ -344,16 +353,16 @@
                 <span class="badge-tag">1-CLICK</span>
               </div>
               <div class="btn-vertical-stack">
-                <button type="button" class="btn btn-accent btn-sm" id="btn-convex-hull" title="Compute Convex Hull (Graham scan / Monotone Chain)">
+                <button type="button" class="btn btn-accent btn-sm" id="btn-convex-hull" title="Compute Convex Hull (Monotone Chain)">
                   ⬡ Convex Hull (Monotone Chain)
                 </button>
-                <button type="button" class="btn btn-secondary btn-sm" id="btn-closest-pair" title="Find Closest Pair of Points O(N log N)">
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-closest-pair" title="Find Closest Pair of Points">
                   ⚡ Closest Pair of Points
                 </button>
                 <button type="button" class="btn btn-secondary btn-sm" id="btn-polygon-shoelace" title="Compute Area via Shoelace Formula">
                   ▲ Polygon Area &amp; Pick's Theorem
                 </button>
-                <button type="button" class="btn btn-secondary btn-sm" id="btn-cross-product" title="Orientation Test (Clockwise / Counter-Clockwise / Collinear)">
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-cross-product" title="Orientation Test (CCW / CW / Collinear)">
                   ↺ Orientation &amp; Cross Product
                 </button>
               </div>
@@ -368,10 +377,10 @@
               </div>
             </div>
 
-            <!-- Manual Point Input & Table -->
+            <!-- Manual Point Entry & Table -->
             <div class="sidebar-section">
               <div class="section-header">
-                <h3>Manual Point Entry</h3>
+                <h3>Point Coordinates</h3>
               </div>
               <div class="dim-inputs-row">
                 <div class="input-group">
@@ -385,7 +394,6 @@
                 <button type="button" class="btn btn-sm btn-primary" id="btn-add-manual-pt">Add</button>
               </div>
 
-              <!-- Point List Scrollbox -->
               <div class="point-table-wrapper mt-2">
                 <table class="point-table" id="point-list-table">
                   <thead>
@@ -393,11 +401,11 @@
                       <th>Pt</th>
                       <th>X</th>
                       <th>Y</th>
-                      <th>Actions</th>
+                      <th>Del</th>
                     </tr>
                   </thead>
                   <tbody id="point-table-body">
-                    <tr class="empty-row"><td colspan="4">No points yet. Click on canvas or add above.</td></tr>
+                    <tr class="empty-row"><td colspan="4">No points. Click on canvas to add.</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -410,22 +418,29 @@
             <!-- CP Raw Points I/O -->
             <div class="sidebar-section">
               <div class="section-header">
-                <h3>CP Points I/O (Codeforces/CSES)</h3>
+                <h3>CP Points I/O</h3>
               </div>
-              <textarea id="points-raw-input" class="code-textarea" rows="4" placeholder="5&#10;0 0&#10;4 0&#10;4 3&#10;0 3&#10;2 5"></textarea>
+              <textarea id="points-raw-input" class="code-textarea" rows="3" placeholder="5&#10;0 0&#10;4 0&#10;4 3&#10;0 3&#10;2 5"></textarea>
               <div class="btn-group-row mt-2">
-                <button type="button" class="btn btn-primary btn-sm" id="btn-parse-points">Load Points</button>
+                <button type="button" class="btn btn-primary btn-sm" id="btn-parse-points">Load</button>
                 <button type="button" class="btn btn-secondary btn-sm" id="btn-copy-points-code">Copy C++ Points</button>
               </div>
               <div class="presets-row mt-2">
                 <label>Presets:</label>
-                <button type="button" class="chip-btn" data-point-preset="hull-test">Hull Test</button>
+                <button type="button" class="chip-btn" data-point-preset="hull-test">Hull</button>
                 <button type="button" class="chip-btn" data-point-preset="collinear">Collinear</button>
-                <button type="button" class="chip-btn" data-point-preset="star">Star Polygon</button>
+                <button type="button" class="chip-btn" data-point-preset="star">Star</button>
                 <button type="button" class="chip-btn" data-point-preset="random-pts">Random 12</button>
               </div>
             </div>
           </aside>
+
+          <!-- Collapse Sidebar Toggle Button -->
+          <button type="button" class="sidebar-collapse-toggle" data-toggle-sidebar="sidebar-point" title="Toggle Sidebar">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+          </button>
 
           <!-- Main Coordinate Viewport -->
           <div class="viewport-wrapper">
@@ -445,7 +460,7 @@
             <div class="status-pill">
               <span class="mono" id="point-status-cursor">X: 0.00, Y: 0.00</span>
               <span class="pill-sep"></span>
-              <span class="mono" id="point-status-dist">Dist to Origin: 0.00</span>
+              <span class="mono" id="point-status-dist">Dist: 0.00</span>
               <span class="pill-sep"></span>
               <span class="mono" id="point-status-zoom">1.0×</span>
             </div>
@@ -459,7 +474,7 @@
       <section id="panel-chess" role="tabpanel" aria-labelledby="tab-chess" class="tab-panel" hidden="until-found" tabindex="0">
         <div class="panel-inner-layout">
           <!-- Chess Controls Sidebar -->
-          <aside class="sidebar-panel">
+          <aside class="sidebar-panel" id="sidebar-chess">
             <div class="sidebar-section">
               <div class="section-header">
                 <h3>Chessboard Dimensions</h3>
@@ -477,7 +492,7 @@
                 <button type="button" class="btn btn-sm btn-primary" id="btn-resize-chess">Apply</button>
               </div>
               <div class="presets-row mt-2">
-                <button type="button" class="chip-btn" data-chess-size="8x8">8 × 8 (Standard)</button>
+                <button type="button" class="chip-btn" data-chess-size="8x8">8 × 8</button>
                 <button type="button" class="chip-btn" data-chess-size="4x4">4 × 4</button>
                 <button type="button" class="chip-btn" data-chess-size="5x5">5 × 5</button>
                 <button type="button" class="chip-btn" data-chess-size="10x10">10 × 10</button>
@@ -510,10 +525,6 @@
                   <span class="piece-symbol">♚</span>
                   <span class="piece-name">King</span>
                 </button>
-                <button type="button" class="piece-btn" data-piece="P" title="Pawn ♟">
-                  <span class="piece-symbol">♟</span>
-                  <span class="piece-name">Pawn</span>
-                </button>
                 <button type="button" class="piece-btn" data-piece="erase" title="Erase Piece / Clear Cell">
                   <span class="piece-symbol">⌫</span>
                   <span class="piece-name">Erase</span>
@@ -527,29 +538,25 @@
                 <h3>CP Chess Algorithms</h3>
               </div>
               <div class="btn-vertical-stack">
-                <!-- Knight BFS -->
                 <button type="button" class="btn btn-accent btn-sm" id="btn-knight-bfs" title="Compute Knight minimum moves to every cell">
                   ♞ Knight Shortest Path &amp; Reachability (BFS)
                 </button>
-                <!-- N-Queens Solver -->
                 <button type="button" class="btn btn-secondary btn-sm" id="btn-nqueens-solve" title="Solve N-Queens Backtracking">
                   ♛ N-Queens Solver &amp; Visualizer
                 </button>
-                <!-- Knight's Tour -->
                 <button type="button" class="btn btn-secondary btn-sm" id="btn-knights-tour" title="Warnsdorff's Knight's Tour">
                   ♞ Knight's Tour (Warnsdorff)
                 </button>
               </div>
 
               <!-- Distance Overlays -->
-              <div class="mt-3">
+              <div class="mt-2">
                 <label for="chess-overlay-select" class="block-label">Square Overlay / Heatmap:</label>
                 <select id="chess-overlay-select" class="select-input">
-                  <option value="none">None (Standard Board)</option>
-                  <option value="attack">Piece Attack / Coverage Map</option>
+                  <option value="none">None (Tournament Board)</option>
                   <option value="manhattan">Manhattan Distance (|Δr| + |Δc|)</option>
-                  <option value="chebyshev">Chebyshev Distance (max(|Δr|, |Δc|))</option>
-                  <option value="bipartite">Bipartite / Diagonal Parity ((r+c)%2)</option>
+                  <option value="chebyshev">Chebyshev Distance (King moves)</option>
+                  <option value="bipartite">Bipartite / Parity ((r+c)%2)</option>
                 </select>
               </div>
 
@@ -559,10 +566,10 @@
                   <h4>N-Queens Solutions</h4>
                   <span id="nqueens-solution-counter">1 / 92</span>
                 </div>
-                <div class="btn-group-row">
+                <div class="btn-group-row mt-2">
                   <button type="button" class="btn btn-secondary btn-sm" id="btn-nq-prev">◀ Prev</button>
                   <button type="button" class="btn btn-secondary btn-sm" id="btn-nq-next">Next ▶</button>
-                  <button type="button" class="btn btn-secondary btn-sm" id="btn-nq-play">▶ Auto-Play</button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btn-nq-play">▶ Auto</button>
                 </div>
               </div>
             </div>
@@ -574,10 +581,17 @@
               </div>
               <div class="btn-group-row">
                 <button type="button" class="btn btn-secondary btn-sm" id="btn-clear-chess">Clear Board</button>
-                <button type="button" class="btn btn-secondary btn-sm" id="btn-copy-chess-coords">Copy Piece Coords</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-copy-chess-coords">Copy Coords</button>
               </div>
             </div>
           </aside>
+
+          <!-- Collapse Sidebar Toggle Button -->
+          <button type="button" class="sidebar-collapse-toggle" data-toggle-sidebar="sidebar-chess" title="Toggle Sidebar">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+          </button>
 
           <!-- Main Chess Viewport -->
           <div class="viewport-wrapper">
@@ -744,8 +758,7 @@ ll boundary_lattice_points(const vector&lt;Point&gt;&amp; p) {
 
     </main>
 
-    <!-- Modals & Overlays -->
-    <!-- Shortcuts Modal -->
+    <!-- Keyboard Shortcuts Modal -->
     <dialog id="shortcuts-dialog" class="modal-dialog">
       <div class="modal-content">
         <div class="modal-header">
@@ -756,8 +769,8 @@ ll boundary_lattice_points(const vector&lt;Point&gt;&amp; p) {
           <div class="shortcut-group">
             <h4>Global Navigation</h4>
             <div class="shortcut-row"><kbd>1</kbd><span>Matrix / Grid Tab</span></div>
-            <div class="shortcut-row"><kbd>2</kbd><span>Points & Geometry Tab</span></div>
-            <div class="shortcut-row"><kbd>3</kbd><span>Chess & Board Tab</span></div>
+            <div class="shortcut-row"><kbd>2</kbd><span>Points &amp; Geometry Tab</span></div>
+            <div class="shortcut-row"><kbd>3</kbd><span>Chess &amp; Board Tab</span></div>
             <div class="shortcut-row"><kbd>4</kbd><span>CP Snippets Tab</span></div>
             <div class="shortcut-row"><kbd>I</kbd><span>Toggle 0-idx / 1-idx</span></div>
             <div class="shortcut-row"><kbd>?</kbd><span>Keyboard Shortcuts</span></div>
@@ -773,7 +786,7 @@ ll boundary_lattice_points(const vector&lt;Point&gt;&amp; p) {
             <h4>Algorithms</h4>
             <div class="shortcut-row"><kbd>Enter</kbd><span>Run Pathfinding / Solve</span></div>
             <div class="shortcut-row"><kbd>H</kbd><span>Compute Convex Hull</span></div>
-            <div class="shortcut-row"><kbd>Esc</kbd><span>Clear Selection / Path</span></div>
+            <div class="shortcut-row"><kbd>Esc</kbd><span>Clear Selection</span></div>
           </div>
         </div>
         <div class="modal-footer">
