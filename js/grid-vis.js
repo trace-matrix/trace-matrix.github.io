@@ -631,19 +631,31 @@ class GridVisualizer {
   }
 
   updateSubmatrixStats() {
-    if (!this.submatrix) return;
+    const rangeText = document.getElementById('sub-range-text');
+    const areaText = document.getElementById('sub-area-text');
+    const sumText = document.getElementById('sub-sum-text');
+    const minText = document.getElementById('sub-min-text');
+    const maxText = document.getElementById('sub-max-text');
+    const avgText = document.getElementById('sub-avg-text');
+    const breakdownEl = document.getElementById('formula-breakdown');
+
+    if (!this.submatrix) {
+      if (rangeText) rangeText.textContent = 'None selected';
+      if (areaText) areaText.textContent = '0';
+      if (sumText) sumText.textContent = '0';
+      if (minText) minText.textContent = '-';
+      if (maxText) maxText.textContent = '-';
+      if (avgText) avgText.textContent = '-';
+      if (breakdownEl) breakdownEl.innerHTML = '';
+      return;
+    }
+
     const { r1, c1, r2, c2 } = this.submatrix;
     const isOneIdx = window.App?.isOneIndexed;
     const r1Disp = isOneIdx ? r1 + 1 : r1;
     const c1Disp = isOneIdx ? c1 + 1 : c1;
     const r2Disp = isOneIdx ? r2 + 1 : r2;
     const c2Disp = isOneIdx ? c2 + 1 : c2;
-
-    const rangeText = document.getElementById('sub-range-text');
-    const areaText = document.getElementById('sub-area-text');
-    const sumText = document.getElementById('sub-sum-text');
-    const minmaxText = document.getElementById('sub-minmax-text');
-    const breakdownEl = document.getElementById('formula-breakdown');
 
     const height = r2 - r1 + 1;
     const width = c2 - c1 + 1;
@@ -666,15 +678,17 @@ class GridVisualizer {
       }
     }
 
-    if (rangeText) rangeText.textContent = `[${r1Disp},${c1Disp}] .. [${r2Disp},${c2Disp}] (${height}×${width})`;
-    if (areaText) areaText.textContent = `${totalCells} cell${totalCells > 1 ? 's' : ''}`;
-    if (sumText) sumText.textContent = hasNumeric ? sum.toLocaleString() : 'N/A';
-    if (minmaxText) {
+    if (rangeText) rangeText.textContent = `[${r1Disp},${c1Disp}]x [${r2Disp},${c2Disp}] (${height}×${width})`;
+    if (areaText) areaText.textContent = `${totalCells}`;
+    if (sumText) sumText.textContent = hasNumeric ? (Number.isInteger(sum) ? sum : sum.toFixed(2)) : '0';
+    if (minText) minText.textContent = hasNumeric ? `${minVal}` : '-';
+    if (maxText) maxText.textContent = hasNumeric ? `${maxVal}` : '-';
+    if (avgText) {
       if (hasNumeric) {
-        const avg = (sum / totalCells).toFixed(2);
-        minmaxText.textContent = `${minVal} / ${maxVal} / ${avg}`;
+        const avg = sum / totalCells;
+        avgText.textContent = Number.isInteger(avg) ? `${avg}` : parseFloat(avg.toFixed(4)).toString();
       } else {
-        minmaxText.textContent = '- / - / -';
+        avgText.textContent = '-';
       }
     }
 
