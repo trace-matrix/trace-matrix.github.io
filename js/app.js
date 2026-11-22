@@ -151,7 +151,6 @@ class AppCoordinator {
 
       if (window.gridVis) {
         window.gridVis.updateSubmatrixStats();
-        window.gridVis.updateSidebarInputs();
         window.gridVis.updateStatusPill();
         window.gridVis.render();
       }

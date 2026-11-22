@@ -126,55 +126,25 @@
               </div>
             </div>
 
-            <!-- Cell Coordinates & Weighted Input -->
-            <div class="sidebar-section" id="section-cell-weight">
-              <div class="section-header">
-                <h3>Set Cell Weight</h3>
-              </div>
-              <div class="dim-inputs-row">
-                <div class="input-group">
-                  <label for="cell-input-row">Row</label>
-                  <input type="number" id="cell-input-row" min="0" value="0">
-                </div>
-                <div class="input-group">
-                  <label for="cell-input-col">Col</label>
-                  <input type="number" id="cell-input-col" min="0" value="0">
-                </div>
-                <div class="input-group">
-                  <label for="cell-input-weight">Weight</label>
-                  <input type="number" id="cell-input-weight" step="any" value="1">
-                </div>
-                <button type="button" class="btn btn-sm btn-primary" id="btn-set-cell-weight">Set</button>
-              </div>
-              <div class="btn-group-row mt-2">
-                <button type="button" class="btn btn-secondary btn-sm" id="btn-clear-grid" title="Reset all cells to 0">Clear Grid</button>
-                <button type="button" class="btn btn-secondary btn-sm" id="btn-fill-grid-weight" title="Fill all cells with specified weight">Fill All</button>
-                <button type="button" class="btn btn-secondary btn-sm" id="btn-random-weights" title="Populate grid with random integer weights">Randomize</button>
-              </div>
-              <p class="section-hint mt-2">💡 Double-click any cell on the canvas to edit its weight in-place.</p>
-            </div>
-
             <!-- Batch Cell Value / Coordinate Paste Input -->
             <div class="sidebar-section" id="section-batch-paste">
               <div class="section-header">
-                <h3>Paste Coordinates &amp; Values</h3>
+                <h3>Input</h3>
               </div>
               <textarea id="grid-batch-input" class="code-textarea" rows="4" placeholder="x1 y1 val1&#10;x2 y2 val2&#10;&#10;e.g.&#10;0 0 5&#10;1 2 10&#10;2 3 25"></textarea>
               <div class="btn-group-row mt-2">
                 <button type="button" class="btn btn-primary btn-sm" id="btn-apply-batch-grid">Apply to Grid</button>
                 <button type="button" class="btn btn-secondary btn-sm" id="btn-clear-batch-text">Clear</button>
               </div>
-              <p class="section-hint mt-2">📋 Pasting (Ctrl+V) automatically updates grid cells.</p>
             </div>
 
             <!-- 2D Prefix Sums Inspector -->
             <div class="sidebar-section" id="section-prefix-sums">
               <div class="section-header">
-                <h3>2D Prefix Sum Calculator</h3>
+                <h3>2D Prefix Calculator</h3>
               </div>
               <div class="prefix-sums-container">
-                <p class="section-hint">Drag a rectangle on the grid to query submatrix sum &amp; range.</p>
-                <div id="submatrix-stats" class="submatrix-stats-box mt-2">
+                <div id="submatrix-stats" class="submatrix-stats-box">
                   <div class="stat-line"><span>Range:</span> <code id="sub-range-text">None selected</code></div>
                   <div class="stat-line"><span>Area:</span> <strong id="sub-area-text">0</strong></div>
                   <div class="stat-line"><span>Sum:</span> <strong id="sub-sum-text" class="text-accent">0</strong></div>

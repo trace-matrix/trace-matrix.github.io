@@ -43,7 +43,6 @@ class GridVisualizer {
     this.initEventListeners();
     this.resizeCanvas();
     this.fitGrid();
-    this.updateSidebarInputs(0, 0);
   }
 
   initGrid(rows, cols, defaultValue = 0) {
@@ -62,7 +61,6 @@ class GridVisualizer {
     }
     this.submatrix = null;
     this.updateDimBadge();
-    this.updateSidebarInputs(0, 0);
   }
 
   updateDimBadge() {
@@ -151,38 +149,6 @@ class GridVisualizer {
       this.render();
     });
 
-    // Cell Weight Sidebar Controls
-    document.getElementById('btn-set-cell-weight')?.addEventListener('click', () => this.setCellWeightFromSidebar());
-
-    const commitOnEnter = (el) => {
-      el?.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          this.setCellWeightFromSidebar();
-        }
-      });
-    };
-    commitOnEnter(document.getElementById('cell-input-row'));
-    commitOnEnter(document.getElementById('cell-input-col'));
-    commitOnEnter(document.getElementById('cell-input-weight'));
-
-    // Clear Grid
-    document.getElementById('btn-clear-grid')?.addEventListener('click', () => {
-      this.clearGrid();
-    });
-
-    // Fill All
-    document.getElementById('btn-fill-grid-weight')?.addEventListener('click', () => {
-      const weightVal = parseFloat(document.getElementById('cell-input-weight')?.value);
-      const w = !isNaN(weightVal) ? weightVal : 0;
-      this.fillAllWeights(w);
-    });
-
-    // Randomize
-    document.getElementById('btn-random-weights')?.addEventListener('click', () => {
-      this.randomizeWeights();
-    });
-
     // Batch Paste Controls (x y val)
     const batchInput = document.getElementById('grid-batch-input');
     batchInput?.addEventListener('paste', (e) => {
@@ -264,7 +230,6 @@ class GridVisualizer {
       this.subStart = cell;
       this.selectedCell = cell;
       this.submatrix = { r1: cell.row, c1: cell.col, r2: cell.row, c2: cell.col };
-      this.updateSidebarInputs(cell.row, cell.col);
       this.updateSubmatrixStats();
       this.render();
     } else {
@@ -354,7 +319,6 @@ class GridVisualizer {
       cell.type = 'empty';
 
       this.selectedCell = { row, col };
-      this.updateSidebarInputs(row, col);
       this.updateSubmatrixStats();
       this.render();
       input.remove();
@@ -392,60 +356,6 @@ class GridVisualizer {
     input.select();
   }
 
-  setCellWeightFromSidebar() {
-    const isOneIdx = window.App?.isOneIndexed;
-    const rInput = document.getElementById('cell-input-row');
-    const cInput = document.getElementById('cell-input-col');
-    const wInput = document.getElementById('cell-input-weight');
-
-    let r = parseInt(rInput?.value);
-    let c = parseInt(cInput?.value);
-    if (isNaN(r) || isNaN(c)) return;
-
-    if (isOneIdx) {
-      r -= 1;
-      c -= 1;
-    }
-
-    if (r < 0 || r >= this.rows || c < 0 || c >= this.cols) {
-      window.App?.showToast(`Coordinates out of bounds! Rows: 0..${this.rows - 1}, Cols: 0..${this.cols - 1}`, 'error');
-      return;
-    }
-
-    const valStr = wInput?.value.trim() ?? '0';
-    const num = Number(valStr);
-    const finalVal = !isNaN(num) && valStr !== '' ? num : valStr;
-
-    this.grid[r][c].val = finalVal;
-    this.grid[r][c].type = 'empty';
-    this.selectedCell = { row: r, col: c };
-    this.submatrix = { r1: r, c1: c, r2: r, c2: c };
-
-    this.updateSubmatrixStats();
-    this.render();
-    window.App?.showToast(`Cell (${this.formatCoord(r, c)}) weight set to ${finalVal}`, 'success');
-  }
-
-  updateSidebarInputs(row, col) {
-    if (row === undefined || col === undefined) {
-      row = this.selectedCell?.row || 0;
-      col = this.selectedCell?.col || 0;
-    }
-    const isOneIdx = window.App?.isOneIndexed;
-    const rDisp = isOneIdx ? row + 1 : row;
-    const cDisp = isOneIdx ? col + 1 : col;
-
-    const rInput = document.getElementById('cell-input-row');
-    const cInput = document.getElementById('cell-input-col');
-    const wInput = document.getElementById('cell-input-weight');
-
-    if (rInput) rInput.value = rDisp;
-    if (cInput) cInput.value = cDisp;
-    if (wInput && this.grid[row] && this.grid[row][col]) {
-      wInput.value = this.grid[row][col].val;
-    }
-  }
-
   clearGrid() {
     for (let r = 0; r < this.rows; r++) {
       for (let c = 0; c < this.cols; c++) {
@@ -454,36 +364,9 @@ class GridVisualizer {
       }
     }
     this.submatrix = null;
-    this.updateSidebarInputs(0, 0);
     this.updateSubmatrixStats();
     this.render();
     window.App?.showToast('All grid cells reset to 0', 'info');
-  }
-
-  fillAllWeights(weight) {
-    for (let r = 0; r < this.rows; r++) {
-      for (let c = 0; c < this.cols; c++) {
-        this.grid[r][c].val = weight;
-        this.grid[r][c].type = 'empty';
-      }
-    }
-    this.updateSidebarInputs();
-    this.updateSubmatrixStats();
-    this.render();
-    window.App?.showToast(`Filled all cells with weight ${weight}`, 'info');
-  }
-
-  randomizeWeights() {
-    for (let r = 0; r < this.rows; r++) {
-      for (let c = 0; c < this.cols; c++) {
-        this.grid[r][c].val = Math.floor(Math.random() * 99) + 1;
-        this.grid[r][c].type = 'empty';
-      }
-    }
-    this.updateSidebarInputs();
-    this.updateSubmatrixStats();
-    this.render();
-    window.App?.showToast('Grid populated with random weights (1–99)', 'info');
   }
 
   parseBatchInput(rawText) {

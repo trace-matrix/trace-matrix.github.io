@@ -658,9 +658,10 @@ html, body {
 .formula-code {
   display: block;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 10.5px;
   color: var(--accent);
-  word-break: break-all;
+  word-break: break-word;
+  overflow-wrap: break-word;
   margin-bottom: 6px;
 }
 
