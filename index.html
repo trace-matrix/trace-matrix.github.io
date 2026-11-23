@@ -214,69 +214,13 @@
         <div class="panel-inner-layout">
           <!-- Point Controls Sidebar -->
           <aside class="sidebar-panel" id="sidebar-point">
-            <div class="sidebar-section">
-              <div class="section-header">
-                <h3>Geometry Options</h3>
-                <span class="dim-badge" id="point-count-badge">0 points</span>
-              </div>
-
-              <!-- Coordinate Options -->
-              <div class="options-box">
-                <label class="custom-checkbox">
-                  <input type="checkbox" id="point-snap-int" checked>
-                  <span class="checkmark"></span>
-                  Snap to Integer Coordinates (CP)
-                </label>
-                <label class="custom-checkbox mt-2">
-                  <input type="checkbox" id="point-system-toggle">
-                  <span class="checkmark"></span>
-                  Matrix Coords (Y Points Down)
-                </label>
-                <label class="custom-checkbox mt-2">
-                  <input type="checkbox" id="point-show-labels" checked>
-                  <span class="checkmark"></span>
-                  Show Point Labels
-                </label>
-              </div>
-            </div>
-
-            <!-- Computational Geometry Algorithms -->
-            <div class="sidebar-section">
-              <div class="section-header">
-                <h3>CP Geometry Algorithms</h3>
-                <span class="badge-tag">1-CLICK</span>
-              </div>
-              <div class="btn-vertical-stack">
-                <button type="button" class="btn btn-accent btn-sm" id="btn-convex-hull" title="Compute Convex Hull (Monotone Chain)">
-                  ⬡ Convex Hull (Monotone Chain)
-                </button>
-                <button type="button" class="btn btn-secondary btn-sm" id="btn-closest-pair" title="Find Closest Pair of Points">
-                  ⚡ Closest Pair of Points
-                </button>
-                <button type="button" class="btn btn-secondary btn-sm" id="btn-polygon-shoelace" title="Compute Area via Shoelace Formula">
-                  ▲ Polygon Area &amp; Pick's Theorem
-                </button>
-                <button type="button" class="btn btn-secondary btn-sm" id="btn-cross-product" title="Orientation Test (CCW / CW / Collinear)">
-                  ↺ Orientation &amp; Cross Product
-                </button>
-              </div>
-
-              <!-- Geometry Results Box -->
-              <div id="geom-results-box" class="stats-box mt-2 hidden">
-                <div class="section-header">
-                  <h4 id="geom-result-title">Algorithm Result</h4>
-                  <button type="button" class="close-stat-btn" id="btn-close-geom-res">&times;</button>
-                </div>
-                <div id="geom-result-content" class="geom-content"></div>
-              </div>
-            </div>
-
             <!-- Points Input -->
             <div class="sidebar-section">
               <div class="section-header">
                 <h3>Input</h3>
+                <span class="dim-badge" id="point-count-badge">0 points</span>
               </div>
-              <textarea id="points-raw-input" class="code-textarea" rows="4" placeholder="5&#10;0 0&#10;4 0&#10;4 3&#10;0 3&#10;2 5"></textarea>
+              <textarea id="points-raw-input" class="code-textarea" rows="6" placeholder="5&#10;0 0&#10;4 0&#10;4 3&#10;0 3&#10;2 5"></textarea>
               <div class="btn-group-row mt-2">
                 <button type="button" class="btn btn-primary btn-sm" id="btn-parse-points">Add points</button>
                 <button type="button" class="btn btn-secondary btn-sm" id="btn-clear-points">Clear All</button>
