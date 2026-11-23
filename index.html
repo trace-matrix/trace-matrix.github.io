@@ -225,7 +225,7 @@
               </div>
               <div class="grid-tool-selector" role="radiogroup" aria-label="Point Tool">
                 <button type="button" class="tool-btn" data-point-tool="add" title="Add Point by Clicking (A)">
-                  <span class="tool-icon">📍</span> Add Point
+                  <span class="tool-icon">📍</span> Add points
                 </button>
                 <button type="button" class="tool-btn active" data-point-tool="move" title="Drag & Move (Default) — Drag points or pan plane. Double-click empty to add, point to connect (V)">
                   <span class="tool-icon">✋</span> Drag &amp; Move
@@ -295,60 +295,15 @@
               </div>
             </div>
 
-            <!-- Manual Point Entry & Table -->
+            <!-- Points Input -->
             <div class="sidebar-section">
               <div class="section-header">
-                <h3>Point Coordinates</h3>
+                <h3>Input</h3>
               </div>
-              <div class="dim-inputs-row">
-                <div class="input-group">
-                  <label for="manual-x">X</label>
-                  <input type="number" id="manual-x" step="any" value="0">
-                </div>
-                <div class="input-group">
-                  <label for="manual-y">Y</label>
-                  <input type="number" id="manual-y" step="any" value="0">
-                </div>
-                <button type="button" class="btn btn-sm btn-primary" id="btn-add-manual-pt">Add</button>
-              </div>
-
-              <div class="point-table-wrapper mt-2">
-                <table class="point-table" id="point-list-table">
-                  <thead>
-                    <tr>
-                      <th>Pt</th>
-                      <th>X</th>
-                      <th>Y</th>
-                      <th>Del</th>
-                    </tr>
-                  </thead>
-                  <tbody id="point-table-body">
-                    <tr class="empty-row"><td colspan="4">No points yet. Double-click canvas or add above.</td></tr>
-                  </tbody>
-                </table>
-              </div>
+              <textarea id="points-raw-input" class="code-textarea" rows="4" placeholder="5&#10;0 0&#10;4 0&#10;4 3&#10;0 3&#10;2 5"></textarea>
               <div class="btn-group-row mt-2">
+                <button type="button" class="btn btn-primary btn-sm" id="btn-parse-points">Add points</button>
                 <button type="button" class="btn btn-secondary btn-sm" id="btn-clear-points">Clear All</button>
-                <button type="button" class="btn btn-secondary btn-sm" id="btn-fit-points">Fit All (F)</button>
-              </div>
-            </div>
-
-            <!-- CP Raw Points I/O -->
-            <div class="sidebar-section">
-              <div class="section-header">
-                <h3>CP Points I/O</h3>
-              </div>
-              <textarea id="points-raw-input" class="code-textarea" rows="3" placeholder="5&#10;0 0&#10;4 0&#10;4 3&#10;0 3&#10;2 5"></textarea>
-              <div class="btn-group-row mt-2">
-                <button type="button" class="btn btn-primary btn-sm" id="btn-parse-points">Load</button>
-                <button type="button" class="btn btn-secondary btn-sm" id="btn-copy-points-code">Copy C++ Points</button>
-              </div>
-              <div class="presets-row mt-2">
-                <label>Presets:</label>
-                <button type="button" class="chip-btn" data-point-preset="hull-test">Hull</button>
-                <button type="button" class="chip-btn" data-point-preset="collinear">Collinear</button>
-                <button type="button" class="chip-btn" data-point-preset="star">Star</button>
-                <button type="button" class="chip-btn" data-point-preset="random-pts">Random 12</button>
               </div>
             </div>
           </aside>

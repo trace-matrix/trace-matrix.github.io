@@ -157,6 +157,8 @@ class PointVisualizer {
       this.convexHull = null;
       this.closestPair = null;
       this.measureResult = null;
+      const rawInput = document.getElementById('points-raw-input');
+      if (rawInput) rawInput.value = '';
       this.updatePointTable();
       this.render();
       window.App?.showToast('Cleared all points & lines', 'info');
@@ -181,6 +183,10 @@ class PointVisualizer {
     });
 
     // Raw I/O
+    const rawPointsInput = document.getElementById('points-raw-input');
+    rawPointsInput?.addEventListener('paste', () => {
+      setTimeout(() => this.parseRawPoints(), 50);
+    });
     document.getElementById('btn-parse-points')?.addEventListener('click', () => this.parseRawPoints());
     document.getElementById('btn-copy-points-code')?.addEventListener('click', () => this.copyCppPoints());
 
@@ -291,7 +297,7 @@ class PointVisualizer {
       this.canvas.style.cursor = 'not-allowed';
     } else if (this.activeTool === 'move') {
       this.canvas.style.cursor = 'grab';
-    } else if (this.activeTool === 'add') {
+    } else if (this.activeTool === 'add' || this.activeTool === 'point') {
       this.canvas.style.cursor = 'crosshair';
     } else if (this.activeTool === 'delete') {
       this.canvas.style.cursor = 'not-allowed';
@@ -342,7 +348,7 @@ class PointVisualizer {
         this.lastMouseX = e.clientX;
         this.lastMouseY = e.clientY;
       }
-    } else if (this.activeTool === 'add') {
+    } else if (this.activeTool === 'add' || this.activeTool === 'point') {
       if (clickedPoint) {
         this.draggedPoint = clickedPoint;
       } else {
