@@ -20,7 +20,6 @@ class ChessVisualizer {
 
     // Board state: 2D array of { piece: 'N'|'Q'|'R'|'B'|'K'|'P'|null, color: 'w'|'b' }
     this.board = [];
-    this.initBoard(this.rows, this.cols);
 
     // Active tool / piece
     this.activePiece = 'N'; // default Knight
@@ -46,6 +45,11 @@ class ChessVisualizer {
 
     // Knight's Tour state
     this.knightsTourMoves = null;
+
+    const loaded = this.loadState();
+    if (!loaded) {
+      this.initBoard(this.rows, this.cols);
+    }
 
     this.initEventListeners();
     this.resizeCanvas();
@@ -116,6 +120,7 @@ class ChessVisualizer {
         document.querySelectorAll('[data-piece]').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         this.activePiece = btn.dataset.piece;
+        this.saveState();
       });
     });
 
@@ -125,6 +130,7 @@ class ChessVisualizer {
       const c = parseInt(document.getElementById('chess-cols')?.value) || 8;
       this.initBoard(r, c);
       this.fitBoard();
+      this.saveState();
       window.App?.showToast(`Chessboard set to ${r} × ${c}`, 'info');
     });
 
@@ -134,6 +140,7 @@ class ChessVisualizer {
         const [r, c] = btn.dataset.chessSize.split('x').map(Number);
         this.initBoard(r, c);
         this.fitBoard();
+        this.saveState();
         window.App?.showToast(`Chessboard set to ${r} × ${c}`, 'info');
       });
     });
@@ -158,12 +165,14 @@ class ChessVisualizer {
     document.getElementById('chess-overlay-select')?.addEventListener('change', (e) => {
       this.activeOverlay = e.target.value;
       this.render();
+      this.saveState();
     });
 
     // Actions
     document.getElementById('btn-clear-chess')?.addEventListener('click', () => {
       this.initBoard(this.rows, this.cols);
       this.render();
+      this.saveState();
       window.App?.showToast('Cleared board', 'info');
     });
     document.getElementById('btn-copy-chess-coords')?.addEventListener('click', () => this.copyPieceCoords());
@@ -173,6 +182,10 @@ class ChessVisualizer {
     window.addEventListener('mousemove', (e) => this.handleMouseMove(e));
     window.addEventListener('mouseup', (e) => this.handleMouseUp(e));
     this.canvas.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
+
+    window.addEventListener('beforeunload', () => {
+      this.saveState();
+    });
   }
 
   zoom(factor) {
@@ -244,6 +257,7 @@ class ChessVisualizer {
         this.board[sq.r][sq.c].piece = (cur === this.activePiece) ? null : this.activePiece;
       }
       this.render();
+      this.saveState();
     } else {
       this.isPanning = true;
       this.lastMouseX = e.clientX;
@@ -768,6 +782,62 @@ class ChessVisualizer {
     this.ctx.strokeStyle = '#475569';
     this.ctx.lineWidth = 2;
     this.ctx.strokeRect(0, 0, this.cols * sz, this.rows * sz);
+  }
+
+  // ==========================================
+  // PERSISTENCE (localStorage)
+  // ==========================================
+  saveState() {
+    try {
+      const state = {
+        rows: this.rows,
+        cols: this.cols,
+        board: this.board,
+        activePiece: this.activePiece,
+        activeOverlay: this.activeOverlay
+      };
+      localStorage.setItem('tracematrix_chess_state', JSON.stringify(state));
+    } catch (e) {
+      console.warn('Failed to save chess state to localStorage', e);
+    }
+  }
+
+  loadState() {
+    try {
+      const raw = localStorage.getItem('tracematrix_chess_state');
+      if (!raw) return false;
+      const state = JSON.parse(raw);
+      if (!state || !Array.isArray(state.board) || !state.rows || !state.cols) return false;
+
+      this.rows = state.rows;
+      this.cols = state.cols;
+      this.board = state.board;
+
+      if (state.activePiece) {
+        this.activePiece = state.activePiece;
+        document.querySelectorAll('[data-piece]').forEach(b => {
+          b.classList.toggle('active', b.dataset.piece === this.activePiece);
+        });
+      }
+
+      if (state.activeOverlay) {
+        this.activeOverlay = state.activeOverlay;
+        const sel = document.getElementById('chess-overlay-select');
+        if (sel) sel.value = this.activeOverlay;
+      }
+
+      const badge = document.getElementById('chess-dim-badge');
+      if (badge) badge.textContent = `${this.rows} × ${this.cols}`;
+      const rInput = document.getElementById('chess-rows');
+      const cInput = document.getElementById('chess-cols');
+      if (rInput) rInput.value = this.rows;
+      if (cInput) cInput.value = this.cols;
+
+      return true;
+    } catch (e) {
+      console.warn('Failed to load chess state from localStorage', e);
+      return false;
+    }
   }
 }
 

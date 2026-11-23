@@ -51,7 +51,12 @@ class PointVisualizer {
 
     this.initEventListeners();
     this.resizeCanvas();
-    this.resetOrigin();
+    const loaded = this.loadState();
+    if (loaded && this.points.length > 0) {
+      this.fitPoints();
+    } else {
+      this.resetOrigin();
+    }
     this.updateCursor();
   }
 
@@ -130,14 +135,17 @@ class PointVisualizer {
     // Toggles
     document.getElementById('point-snap-int')?.addEventListener('change', (e) => {
       this.snapToInteger = e.target.checked;
+      this.saveState();
     });
     document.getElementById('point-system-toggle')?.addEventListener('change', (e) => {
       this.isMatrixCoords = e.target.checked;
       this.render();
+      this.saveState();
     });
     document.getElementById('point-show-labels')?.addEventListener('change', (e) => {
       this.showLabels = e.target.checked;
       this.render();
+      this.saveState();
     });
 
     // Manual Point Add
@@ -161,6 +169,7 @@ class PointVisualizer {
       if (rawInput) rawInput.value = '';
       this.updatePointTable();
       this.render();
+      this.saveState();
       window.App?.showToast('Cleared all points & lines', 'info');
     });
 
@@ -221,6 +230,10 @@ class PointVisualizer {
       if (e.key === 'Escape' && this.connectingPoint) {
         this.cancelConnecting();
       }
+    });
+
+    window.addEventListener('beforeunload', () => {
+      this.saveState();
     });
   }
 
@@ -451,8 +464,10 @@ class PointVisualizer {
   }
 
   handleMouseUp(e) {
+    let stateChanged = false;
     if (this.draggedPoint) {
       this.syncInputTextarea();
+      stateChanged = true;
     }
     if (this.connectingPoint && this.draggedPoint && this.draggedPoint === this.connectingPoint) {
       const rect = this.container.getBoundingClientRect();
@@ -463,12 +478,16 @@ class PointVisualizer {
         this.addSegment(this.connectingPoint, targetPoint);
         window.App?.showToast(`Created line: ${this.connectingPoint.label} — ${targetPoint.label}`, 'success');
         this.connectingPoint = null;
+        stateChanged = true;
       }
     }
     this.isPanning = false;
     this.draggedPoint = null;
     this.updateCursor();
     this.render();
+    if (stateChanged) {
+      this.saveState();
+    }
   }
 
   handleDoubleClick(e) {
@@ -556,6 +575,7 @@ class PointVisualizer {
       this.syncInputTextarea();
     }
     this.render();
+    this.saveState();
     return newPt;
   }
 
@@ -577,12 +597,14 @@ class PointVisualizer {
     };
     this.segments.push(seg);
     this.render();
+    this.saveState();
     return seg;
   }
 
   deleteSegment(id) {
     this.segments = this.segments.filter(s => s.id !== id);
     this.render();
+    this.saveState();
   }
 
   deletePoint(id) {
@@ -595,6 +617,7 @@ class PointVisualizer {
     this.updatePointTable();
     this.syncInputTextarea();
     this.render();
+    this.saveState();
   }
 
   syncInputTextarea() {
@@ -885,6 +908,7 @@ class PointVisualizer {
       window.App?.showToast('12 Random points loaded', 'info');
     }
     this.fitPoints();
+    this.saveState();
   }
 
   parseRawPoints(fit = false, showToast = false) {
@@ -901,6 +925,7 @@ class PointVisualizer {
       this.measureResult = null;
       this.updatePointTable();
       this.render();
+      this.saveState();
       if (showToast) {
         window.App?.showToast('Cleared all points (input is empty)', 'info');
       }
@@ -959,6 +984,7 @@ class PointVisualizer {
 
     this.updatePointTable();
     this.render();
+    this.saveState();
 
     if (fit && this.points.length > 0) {
       this.fitPoints();
@@ -1363,6 +1389,93 @@ class PointVisualizer {
     }
 
     this.ctx.restore();
+  }
+
+  // ==========================================
+  // PERSISTENCE (localStorage)
+  // ==========================================
+  saveState() {
+    try {
+      const rawInput = document.getElementById('points-raw-input');
+      const state = {
+        points: this.points,
+        segments: this.segments.map(s => ({
+          id: s.id,
+          p1Id: s.p1.id,
+          p2Id: s.p2.id,
+          color: s.color
+        })),
+        nextPointId: this.nextPointId,
+        nextSegmentId: this.nextSegmentId,
+        snapToInteger: this.snapToInteger,
+        isMatrixCoords: this.isMatrixCoords,
+        showLabels: this.showLabels,
+        rawInputText: rawInput ? rawInput.value : ''
+      };
+      localStorage.setItem('tracematrix_point_state', JSON.stringify(state));
+    } catch (e) {
+      console.warn('Failed to save point state to localStorage', e);
+    }
+  }
+
+  loadState() {
+    try {
+      const raw = localStorage.getItem('tracematrix_point_state');
+      if (!raw) return false;
+      const state = JSON.parse(raw);
+      if (!state || !Array.isArray(state.points)) return false;
+
+      this.points = state.points;
+      this.nextPointId = state.nextPointId || (this.points.length + 1);
+      this.nextSegmentId = state.nextSegmentId || 1;
+
+      // Reconstruct segments linking to the point objects
+      const pointMap = new Map(this.points.map(p => [p.id, p]));
+      this.segments = [];
+      if (Array.isArray(state.segments)) {
+        for (const s of state.segments) {
+          const p1 = pointMap.get(s.p1Id);
+          const p2 = pointMap.get(s.p2Id);
+          if (p1 && p2) {
+            this.segments.push({
+              id: s.id,
+              p1,
+              p2,
+              color: s.color || '#38bdf8'
+            });
+          }
+        }
+      }
+
+      if (typeof state.snapToInteger === 'boolean') {
+        this.snapToInteger = state.snapToInteger;
+        const chk = document.getElementById('point-snap-int');
+        if (chk) chk.checked = this.snapToInteger;
+      }
+      if (typeof state.isMatrixCoords === 'boolean') {
+        this.isMatrixCoords = state.isMatrixCoords;
+        const chk = document.getElementById('point-system-toggle');
+        if (chk) chk.checked = this.isMatrixCoords;
+      }
+      if (typeof state.showLabels === 'boolean') {
+        this.showLabels = state.showLabels;
+        const chk = document.getElementById('point-show-labels');
+        if (chk) chk.checked = this.showLabels;
+      }
+
+      const rawInput = document.getElementById('points-raw-input');
+      if (rawInput && state.rawInputText !== undefined) {
+        rawInput.value = state.rawInputText;
+      } else if (rawInput && this.points.length > 0) {
+        this.syncInputTextarea();
+      }
+
+      this.updatePointTable();
+      return true;
+    } catch (e) {
+      console.warn('Failed to load point state from localStorage', e);
+      return false;
+    }
   }
 }
 

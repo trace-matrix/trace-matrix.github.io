@@ -18,10 +18,6 @@ class GridVisualizer {
     this.panY = 40;
     this.zoom = 1.0;
 
-    // Grid data
-    this.grid = [];
-    this.initGrid(this.rows, this.cols, 0);
-
     // Interaction state
     this.isDragging = false;
     this.isPanning = false;
@@ -39,6 +35,13 @@ class GridVisualizer {
     this.showHeatmap = false;
     this.showPrefixOverlay = false;
     this.showSubscripts = false;
+
+    // Grid data & state restoration
+    this.grid = [];
+    const loaded = this.loadState();
+    if (!loaded) {
+      this.initGrid(this.rows, this.cols, 0);
+    }
 
     this.initEventListeners();
     this.resizeCanvas();
@@ -117,7 +120,19 @@ class GridVisualizer {
       const c = parseInt(document.getElementById('grid-cols')?.value) || 10;
       this.initGrid(r, c);
       this.fitGrid();
+      this.saveState();
       window.App?.showToast(`Grid resized to ${r} × ${c}`, 'info');
+    });
+
+    // Preset sizes
+    document.querySelectorAll('[data-grid-size]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const [r, c] = btn.dataset.gridSize.split('x').map(Number);
+        this.initGrid(r, c, 0);
+        this.fitGrid();
+        this.saveState();
+        window.App?.showToast(`Grid set to ${r} × ${c}`, 'info');
+      });
     });
 
     // Zoom Buttons
@@ -139,14 +154,17 @@ class GridVisualizer {
     document.getElementById('toggle-prefix-overlay')?.addEventListener('change', (e) => {
       this.showPrefixOverlay = e.target.checked;
       this.render();
+      this.saveState();
     });
     document.getElementById('toggle-heatmap')?.addEventListener('change', (e) => {
       this.showHeatmap = e.target.checked;
       this.render();
+      this.saveState();
     });
     document.getElementById('toggle-subscripts')?.addEventListener('change', (e) => {
       this.showSubscripts = e.target.checked;
       this.render();
+      this.saveState();
     });
 
     // Batch Paste & Input Controls (x y val)
@@ -178,6 +196,11 @@ class GridVisualizer {
 
     document.getElementById('btn-clear-batch-text')?.addEventListener('click', () => {
       if (batchInput) batchInput.value = '';
+      this.saveState();
+    });
+
+    window.addEventListener('beforeunload', () => {
+      this.saveState();
     });
   }
 
@@ -286,6 +309,9 @@ class GridVisualizer {
   }
 
   handleMouseUp(e) {
+    if (this.isSelectingSubmatrix) {
+      this.saveState();
+    }
     this.isPanning = false;
     this.isSelectingSubmatrix = false;
   }
@@ -334,6 +360,7 @@ class GridVisualizer {
       this.updateSubmatrixStats();
       this.render();
       input.remove();
+      this.saveState();
     };
 
     input.addEventListener('keydown', (e) => {
@@ -378,6 +405,7 @@ class GridVisualizer {
     this.submatrix = null;
     this.updateSubmatrixStats();
     this.render();
+    this.saveState();
     window.App?.showToast('All grid cells reset to 0', 'info');
   }
 
@@ -460,6 +488,7 @@ class GridVisualizer {
 
     this.updateSubmatrixStats();
     this.render();
+    this.saveState();
     if (showToast) {
       window.App?.showToast(`Added ${updatedCount} cell value${updatedCount !== 1 ? 's' : ''} to grid!`, 'success');
     }
@@ -488,6 +517,7 @@ class GridVisualizer {
 
     this.updateDimBadge();
     this.fitGrid();
+    this.saveState();
   }
 
   formatCoord(r, c) {
@@ -752,6 +782,76 @@ class GridVisualizer {
     this.ctx.strokeStyle = '#374151';
     this.ctx.lineWidth = 2;
     this.ctx.strokeRect(0, 0, this.cols * cs, this.rows * cs);
+  }
+
+  // ==========================================
+  // PERSISTENCE (localStorage)
+  // ==========================================
+  saveState() {
+    try {
+      const batchInput = document.getElementById('grid-batch-input');
+      const state = {
+        rows: this.rows,
+        cols: this.cols,
+        grid: this.grid,
+        batchInputText: batchInput ? batchInput.value : '',
+        showHeatmap: this.showHeatmap,
+        showPrefixOverlay: this.showPrefixOverlay,
+        showSubscripts: this.showSubscripts,
+        submatrix: this.submatrix,
+        selectedCell: this.selectedCell
+      };
+      localStorage.setItem('tracematrix_grid_state', JSON.stringify(state));
+    } catch (e) {
+      console.warn('Failed to save grid state to localStorage', e);
+    }
+  }
+
+  loadState() {
+    try {
+      const raw = localStorage.getItem('tracematrix_grid_state');
+      if (!raw) return false;
+      const state = JSON.parse(raw);
+      if (!state || !Array.isArray(state.grid) || !state.rows || !state.cols) return false;
+
+      this.rows = state.rows;
+      this.cols = state.cols;
+      this.grid = state.grid;
+
+      if (state.batchInputText !== undefined) {
+        const batchInput = document.getElementById('grid-batch-input');
+        if (batchInput) batchInput.value = state.batchInputText;
+      }
+
+      if (typeof state.showHeatmap === 'boolean') {
+        this.showHeatmap = state.showHeatmap;
+        const chk = document.getElementById('toggle-heatmap');
+        if (chk) chk.checked = this.showHeatmap;
+      }
+      if (typeof state.showPrefixOverlay === 'boolean') {
+        this.showPrefixOverlay = state.showPrefixOverlay;
+        const chk = document.getElementById('toggle-prefix-overlay');
+        if (chk) chk.checked = this.showPrefixOverlay;
+      }
+      if (typeof state.showSubscripts === 'boolean') {
+        this.showSubscripts = state.showSubscripts;
+        const chk = document.getElementById('toggle-subscripts');
+        if (chk) chk.checked = this.showSubscripts;
+      }
+      if (state.submatrix) {
+        this.submatrix = state.submatrix;
+      }
+      if (state.selectedCell) {
+        this.selectedCell = state.selectedCell;
+      }
+
+      this.updateDimBadge();
+      this.updateSubmatrixStats();
+      return true;
+    } catch (e) {
+      console.warn('Failed to load grid state from localStorage', e);
+      return false;
+    }
   }
 }
 

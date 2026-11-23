@@ -20,8 +20,14 @@ class AppCoordinator {
     window.pointVis = new PointVisualizer();
     window.chessVis = new ChessVisualizer();
 
+    this.loadState();
+
     window.addEventListener('resize', () => {
       this.refreshCurrentVisualizer();
+    });
+
+    window.addEventListener('beforeunload', () => {
+      this.saveState();
     });
   }
 
@@ -57,6 +63,7 @@ class AppCoordinator {
       }
 
       this.currentTab = selectedTab.id.replace('tab-', '');
+      this.saveState();
       setTimeout(() => {
         this.refreshCurrentVisualizer();
       }, 30);
@@ -115,6 +122,7 @@ class AppCoordinator {
           const isCollapsed = sidebar.classList.contains('collapsed');
           btn.querySelector('svg').style.transform = isCollapsed ? 'rotate(180deg)' : 'none';
           btn.title = isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar';
+          this.saveState();
           setTimeout(() => {
             this.refreshCurrentVisualizer();
           }, 260);
@@ -130,6 +138,7 @@ class AppCoordinator {
         sidebar.classList.toggle('collapsed');
         const isCollapsed = sidebar.classList.contains('collapsed');
         btn.querySelector('svg').style.transform = isCollapsed ? 'rotate(180deg)' : 'none';
+        this.saveState();
         setTimeout(() => {
           this.refreshCurrentVisualizer();
         }, 260);
@@ -148,6 +157,7 @@ class AppCoordinator {
       this.isOneIndexed = oneIndexed;
       if (btn0) btn0.classList.toggle('active', !oneIndexed);
       if (btn1) btn1.classList.toggle('active', oneIndexed);
+      this.saveState();
 
       if (window.gridVis) {
         window.gridVis.updateSubmatrixStats();
@@ -303,6 +313,72 @@ class AppCoordinator {
       toast.style.transition = 'all 0.25s ease';
       setTimeout(() => toast.remove(), 250);
     }, 2500);
+  }
+
+  // ==========================================
+  // PERSISTENCE (localStorage)
+  // ==========================================
+  saveState() {
+    try {
+      const collapsed = [];
+      document.querySelectorAll('.sidebar-panel.collapsed').forEach(el => {
+        if (el.id) collapsed.push(el.id);
+      });
+      const state = {
+        currentTab: this.currentTab,
+        isOneIndexed: this.isOneIndexed,
+        collapsedSidebars: collapsed
+      };
+      localStorage.setItem('tracematrix_app_state', JSON.stringify(state));
+    } catch (e) {
+      console.warn('Failed to save app state to localStorage', e);
+    }
+  }
+
+  loadState() {
+    try {
+      const raw = localStorage.getItem('tracematrix_app_state');
+      if (!raw) return;
+      const state = JSON.parse(raw);
+
+      if (typeof state.isOneIndexed === 'boolean') {
+        const btn0 = document.getElementById('btn-idx-0');
+        const btn1 = document.getElementById('btn-idx-1');
+        this.isOneIndexed = state.isOneIndexed;
+        if (btn0) btn0.classList.toggle('active', !this.isOneIndexed);
+        if (btn1) btn1.classList.toggle('active', this.isOneIndexed);
+        if (window.gridVis) {
+          window.gridVis.updateSubmatrixStats();
+          window.gridVis.updateStatusPill();
+          window.gridVis.render();
+        }
+        if (window.chessVis) {
+          window.chessVis.updateStatusPill();
+          window.chessVis.render();
+        }
+      }
+
+      if (Array.isArray(state.collapsedSidebars)) {
+        state.collapsedSidebars.forEach(id => {
+          const sidebar = document.getElementById(id);
+          const btn = document.querySelector(`[data-toggle-sidebar="${id}"]`);
+          if (sidebar) {
+            sidebar.classList.add('collapsed');
+            if (btn) {
+              const svg = btn.querySelector('svg');
+              if (svg) svg.style.transform = 'rotate(180deg)';
+              btn.title = 'Expand Sidebar';
+            }
+          }
+        });
+      }
+
+      if (state.currentTab && state.currentTab !== 'grid') {
+        this.selectTabById(`tab-${state.currentTab}`);
+      }
+    } catch (e) {
+      console.warn('Failed to load app state from localStorage', e);
+    }
   }
 }
 
