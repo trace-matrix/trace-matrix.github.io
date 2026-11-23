@@ -439,6 +439,9 @@ class PointVisualizer {
   }
 
   handleMouseUp(e) {
+    if (this.draggedPoint) {
+      this.syncInputTextarea();
+    }
     if (this.connectingPoint && this.draggedPoint && this.draggedPoint === this.connectingPoint) {
       const rect = this.container.getBoundingClientRect();
       const sx = e.clientX - rect.left;
@@ -525,7 +528,7 @@ class PointVisualizer {
     }
   }
 
-  addPoint(x, y, label = null) {
+  addPoint(x, y, label = null, syncText = true) {
     const id = this.nextPointId++;
     const ptLabel = label || this.getAlphabetLabel(id);
     const newPt = {
@@ -537,6 +540,9 @@ class PointVisualizer {
     };
     this.points.push(newPt);
     this.updatePointTable();
+    if (syncText) {
+      this.syncInputTextarea();
+    }
     this.render();
     return newPt;
   }
@@ -575,7 +581,29 @@ class PointVisualizer {
       this.connectingPoint = null;
     }
     this.updatePointTable();
+    this.syncInputTextarea();
     this.render();
+  }
+
+  syncInputTextarea() {
+    const rawInput = document.getElementById('points-raw-input');
+    if (!rawInput) return;
+    if (document.activeElement === rawInput) return;
+
+    if (this.points.length === 0) {
+      rawInput.value = '';
+      return;
+    }
+
+    const prevLines = rawInput.value.trim().split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+    const hadCount = prevLines.length > 0 && prevLines[0].split(/\s+/).length === 1 && !isNaN(prevLines[0]);
+
+    const pointLines = this.points.map(p => `${p.x} ${p.y}`);
+    if (hadCount) {
+      rawInput.value = `${this.points.length}\n${pointLines.join('\n')}`;
+    } else {
+      rawInput.value = pointLines.join('\n');
+    }
   }
 
   getAlphabetLabel(id) {
@@ -872,12 +900,13 @@ class PointVisualizer {
         const x = parseFloat(tokens[0]);
         const y = parseFloat(tokens[1]);
         if (!isNaN(x) && !isNaN(y)) {
-          this.addPoint(x, y);
+          this.addPoint(x, y, null, false);
         }
       }
     }
 
     this.fitPoints();
+    this.syncInputTextarea();
     window.App?.showToast(`Loaded ${this.points.length} points from input`, 'success');
   }
 
