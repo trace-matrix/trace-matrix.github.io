@@ -501,6 +501,14 @@ class PointVisualizer {
     const rect = this.container.getBoundingClientRect();
     const sx = e.clientX - rect.left;
     const sy = e.clientY - rect.top;
+
+    const clickedPoint = this.findPointAt(sx, sy);
+    if (clickedPoint) {
+      this.deletePoint(clickedPoint.id);
+      window.App?.showToast(`Deleted point ${clickedPoint.label}`, 'info');
+      return;
+    }
+
     const seg = this.findSegmentAt(sx, sy);
     if (seg) {
       this.deleteSegment(seg.id);
