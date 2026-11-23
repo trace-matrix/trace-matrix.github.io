@@ -1,0 +1,19 @@
+{
+  "name": "TraceMatrix — CP Visualizer",
+  "short_name": "TraceMatrix",
+  "icons": [
+    {
+      "src": "favicon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "theme_color": "#0a0e17",
+  "background_color": "#0a0e17",
+  "display": "standalone"
+}
