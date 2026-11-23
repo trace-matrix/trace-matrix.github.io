@@ -185,9 +185,21 @@ class PointVisualizer {
     // Raw I/O
     const rawPointsInput = document.getElementById('points-raw-input');
     rawPointsInput?.addEventListener('paste', () => {
-      setTimeout(() => this.parseRawPoints(), 50);
+      setTimeout(() => this.parseRawPoints(true, true), 50);
     });
-    document.getElementById('btn-parse-points')?.addEventListener('click', () => this.parseRawPoints());
+    rawPointsInput?.addEventListener('input', () => {
+      clearTimeout(this._inputSyncTimer);
+      this._inputSyncTimer = setTimeout(() => {
+        this.parseRawPoints(false, false);
+      }, 200);
+    });
+    rawPointsInput?.addEventListener('change', () => {
+      clearTimeout(this._inputSyncTimer);
+      this.parseRawPoints(false, false);
+    });
+    document.getElementById('btn-parse-points')?.addEventListener('click', () => {
+      this.parseRawPoints(true, true);
+    });
     document.getElementById('btn-copy-points-code')?.addEventListener('click', () => this.copyCppPoints());
 
     // Canvas Mouse & Wheel
@@ -875,39 +887,86 @@ class PointVisualizer {
     this.fitPoints();
   }
 
-  parseRawPoints() {
-    const raw = document.getElementById('points-raw-input')?.value.trim();
+  parseRawPoints(fit = false, showToast = false) {
+    const rawInput = document.getElementById('points-raw-input');
+    const raw = rawInput?.value.trim() ?? '';
+
+    // If completely empty, remove all points from graph
     if (!raw) {
-      window.App?.showToast('Points input is empty', 'error');
+      this.points = [];
+      this.segments = [];
+      this.connectingPoint = null;
+      this.convexHull = null;
+      this.closestPair = null;
+      this.measureResult = null;
+      this.updatePointTable();
+      this.render();
+      if (showToast) {
+        window.App?.showToast('Cleared all points (input is empty)', 'info');
+      }
       return;
     }
 
     const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
-    this.points = [];
-    this.segments = [];
-    this.connectingPoint = null;
-    this.nextPointId = 1;
-    this.nextSegmentId = 1;
-
     let start = 0;
     if (lines[0].split(/\s+/).length === 1 && !isNaN(lines[0])) {
       start = 1;
     }
 
+    const parsedPairs = [];
     for (let i = start; i < lines.length; i++) {
       const tokens = lines[i].split(/[\s,]+/).filter(t => t.length > 0);
       if (tokens.length >= 2) {
         const x = parseFloat(tokens[0]);
         const y = parseFloat(tokens[1]);
         if (!isNaN(x) && !isNaN(y)) {
-          this.addPoint(x, y, null, false);
+          parsedPairs.push({ x, y });
         }
       }
     }
 
-    this.fitPoints();
-    this.syncInputTextarea();
-    window.App?.showToast(`Loaded ${this.points.length} points from input`, 'success');
+    // Match existing points with parsedPairs to preserve labels, IDs, colors, and line connections
+    const remainingExisting = [...this.points];
+    const newPoints = [];
+
+    for (const pair of parsedPairs) {
+      const matchIdx = remainingExisting.findIndex(
+        p => Math.abs(p.x - pair.x) < 1e-6 && Math.abs(p.y - pair.y) < 1e-6
+      );
+      if (matchIdx >= 0) {
+        newPoints.push(remainingExisting[matchIdx]);
+        remainingExisting.splice(matchIdx, 1);
+      } else {
+        const id = this.nextPointId++;
+        newPoints.push({
+          id,
+          x: pair.x,
+          y: pair.y,
+          label: this.getAlphabetLabel(id),
+          color: '#38bdf8'
+        });
+      }
+    }
+
+    // Any point in remainingExisting was removed by the user in the text box -> remove from graph
+    const removedIds = new Set(remainingExisting.map(p => p.id));
+    this.points = newPoints;
+    this.selectedPoints = this.selectedPoints.filter(p => !removedIds.has(p.id));
+    this.segments = this.segments.filter(s => !removedIds.has(s.p1.id) && !removedIds.has(s.p2.id));
+    if (this.connectingPoint && removedIds.has(this.connectingPoint.id)) {
+      this.connectingPoint = null;
+    }
+
+    this.updatePointTable();
+    this.render();
+
+    if (fit && this.points.length > 0) {
+      this.fitPoints();
+    }
+
+    if (showToast) {
+      window.App?.showToast(`Loaded ${this.points.length} points from input`, 'success');
+    }
   }
 
   copyCppPoints() {
