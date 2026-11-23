@@ -591,11 +591,25 @@ html, body {
   color: var(--accent);
 }
 
-/* Checkboxes */
+/* Checkboxes & Toggles */
 .checkbox-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+}
+
+.checkbox-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 12px;
+  padding: 9px 12px;
+  background-color: var(--bg-surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.checkbox-grid label:first-child {
+  grid-column: 1 / -1;
 }
 
 .custom-checkbox {
@@ -606,10 +620,21 @@ html, body {
   color: var(--text-main);
   cursor: pointer;
   user-select: none;
+  white-space: nowrap;
+  transition: color 0.15s ease;
 }
 
-.custom-checkbox input {
+.custom-checkbox:hover {
+  color: var(--accent);
+}
+
+.custom-checkbox input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
   accent-color: var(--accent);
+  cursor: pointer;
+  margin: 0;
+  flex-shrink: 0;
 }
 
 /* Stats Card Boxes */
