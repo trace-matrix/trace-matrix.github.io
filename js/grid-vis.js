@@ -149,19 +149,31 @@ class GridVisualizer {
       this.render();
     });
 
-    // Batch Paste Controls (x y val)
+    // Batch Paste & Input Controls (x y val)
     const batchInput = document.getElementById('grid-batch-input');
     batchInput?.addEventListener('paste', (e) => {
       const clipboardText = e.clipboardData ? e.clipboardData.getData('text') : null;
       if (clipboardText) {
         setTimeout(() => {
-          this.parseBatchInput(clipboardText);
+          this.parseBatchInput(clipboardText, true);
         }, 30);
       }
     });
 
+    batchInput?.addEventListener('input', () => {
+      clearTimeout(this._batchTimer);
+      this._batchTimer = setTimeout(() => {
+        this.parseBatchInput(batchInput.value, false);
+      }, 200);
+    });
+
+    batchInput?.addEventListener('change', () => {
+      clearTimeout(this._batchTimer);
+      this.parseBatchInput(batchInput.value, false);
+    });
+
     document.getElementById('btn-apply-batch-grid')?.addEventListener('click', () => {
-      this.parseBatchInput(batchInput?.value);
+      this.parseBatchInput(batchInput?.value, true);
     });
 
     document.getElementById('btn-clear-batch-text')?.addEventListener('click', () => {
@@ -369,7 +381,7 @@ class GridVisualizer {
     window.App?.showToast('All grid cells reset to 0', 'info');
   }
 
-  parseBatchInput(rawText) {
+  parseBatchInput(rawText, showToast = true) {
     if (!rawText || !rawText.trim()) return;
 
     const lines = rawText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
@@ -408,7 +420,9 @@ class GridVisualizer {
     }
 
     if (parsedEntries.length === 0) {
-      window.App?.showToast('No valid "x y val" rows found in input', 'error');
+      if (showToast) {
+        window.App?.showToast('No valid "x y val" rows found in input', 'error');
+      }
       return;
     }
 
@@ -446,7 +460,9 @@ class GridVisualizer {
 
     this.updateSubmatrixStats();
     this.render();
-    window.App?.showToast(`Added ${updatedCount} cell value${updatedCount !== 1 ? 's' : ''} to grid!`, 'success');
+    if (showToast) {
+      window.App?.showToast(`Added ${updatedCount} cell value${updatedCount !== 1 ? 's' : ''} to grid!`, 'success');
+    }
   }
 
   resizeGridPreserving(newRows, newCols) {
