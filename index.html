@@ -3,15 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="color-scheme" content="light dark">
-  <script>
-    try {
-      const stored = localStorage.getItem("color-scheme");
-      if (stored) {
-        document.querySelector('meta[name="color-scheme"]').content = stored;
-      }
-    } catch(e) {}
-  </script>
+  <meta name="color-scheme" content="dark">
   <title>TraceMatrix — Competitive Programming Matrix, Geometry & Chess Visualizer</title>
   <meta name="description" content="A fast, clean, interactive visualizer for competitive programming: 2D Matrix & Grids, 2D Prefix Sums, BFS Pathfinding, Coordinate Geometry, Convex Hull, and Chessboard problem solving.">
   
@@ -21,7 +13,7 @@
   <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
   <link rel="manifest" href="site.webmanifest">
-  <meta name="theme-color" content="#0a0e17">
+  <meta name="theme-color" content="#000000">
 
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -83,21 +75,6 @@
             <line x1="12" y1="17" x2="12.01" y2="17"/>
           </svg>
         </button>
-
-        <!-- Color Scheme Toggle -->
-        <button type="button" class="icon-btn theme-toggle" id="btn-theme-toggle" title="Toggle theme (System / Dark / Light)" aria-label="Toggle theme">
-          <svg class="sun-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="5"/>
-            <line x1="12" y1="1" x2="12" y2="3"/>
-            <line x1="12" y1="21" x2="12" y2="23"/>
-            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-            <line x1="1" y1="12" x2="3" y2="12"/>
-            <line x1="21" y1="12" x2="23" y2="12"/>
-            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-          </svg>
-        </button>
       </div>
     </header>
 
@@ -111,6 +88,19 @@
         <div class="panel-inner-layout">
           <!-- Left Control Sidebar -->
           <aside class="sidebar-panel" id="sidebar-grid">
+            <!-- Multi-Board Canvas Switcher (Grids & Chessboards on Same Canvas) -->
+            <div class="sidebar-section">
+              <div class="chess-boards-bar" id="grid-boards-tabs" role="tablist" aria-label="Canvas Grids &amp; Chessboards">
+                <button type="button" class="board-tab-pill active" data-grid-idx="0">Grid 1</button>
+                <button type="button" class="board-add-pill" id="btn-grid-add-grid" title="Add Another Grid on Canvas">+ Grid</button>
+                <button type="button" class="board-add-pill" id="btn-grid-add-chess" title="Add a Chessboard on Canvas">+ Chess</button>
+              </div>
+              <div class="seg-group seg-2">
+                <button type="button" class="seg-btn" id="btn-grid-dup-board" title="Clone Active Grid/Chessboard onto Canvas">Clone</button>
+                <button type="button" class="seg-btn" id="btn-grid-del-board" title="Remove Active Grid/Chessboard">Remove</button>
+              </div>
+            </div>
+
             <div class="sidebar-section">
               <div class="section-header">
                 <h3>Grid Dimensions</h3>
@@ -416,6 +406,19 @@
         <div class="panel-inner-layout">
           <!-- Chess Controls Sidebar -->
           <aside class="sidebar-panel" id="sidebar-chess">
+            <!-- Multi-Board Canvas Tabs (Chessboards & Grids on Same Canvas) -->
+            <div class="sidebar-section">
+              <div class="chess-boards-bar" id="chess-boards-tabs" role="tablist" aria-label="Canvas Chessboards &amp; Grids">
+                <button type="button" class="board-tab-pill active" data-board-idx="0">Board 1</button>
+                <button type="button" class="board-add-pill" id="btn-chess-add-board" title="Add Another Chessboard on Canvas">+ Chess</button>
+                <button type="button" class="board-add-pill" id="btn-chess-add-grid" title="Add a Grid on Canvas">+ Grid</button>
+              </div>
+              <div class="seg-group seg-2">
+                <button type="button" class="seg-btn" id="btn-chess-dup-board" title="Clone Active Board/Grid onto Canvas">Clone</button>
+                <button type="button" class="seg-btn" id="btn-chess-del-board" title="Remove Active Board/Grid">Remove</button>
+              </div>
+            </div>
+
             <div class="sidebar-section">
               <div class="section-header">
                 <h3>Board Dimensions</h3>
@@ -441,8 +444,8 @@
               <div class="seg-group seg-4 mt-2">
                 <button type="button" class="seg-btn" id="btn-chess-undo" title="Undo (Ctrl+Z)">Undo</button>
                 <button type="button" class="seg-btn" id="btn-chess-redo" title="Redo (Ctrl+Y)">Redo</button>
-                <button type="button" class="seg-btn" id="btn-chess-rand-walls" title="Generate Random Obstacles">Walls #</button>
-                <button type="button" class="seg-btn" id="btn-clear-chess" title="Clear Board">Clear</button>
+                <button type="button" class="seg-btn" id="btn-chess-rand-walls" title="Scatter Wall Obstacles (#)">Walls #</button>
+                <button type="button" class="seg-btn" id="btn-clear-chess" title="Clear Active Board">Clear</button>
               </div>
             </div>
 

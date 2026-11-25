@@ -179,46 +179,14 @@ class AppCoordinator {
   }
 
   // ==========================================
-  // THEME MANAGEMENT (Modern-Web-Guidance)
+  // THEME MANAGEMENT (Obsidian Dark Only)
   // ==========================================
   initThemeToggle() {
     const meta = document.querySelector('meta[name="color-scheme"]');
-    const toggleBtn = document.getElementById('btn-theme-toggle');
-
-    const updateTheme = (targetScheme) => {
-      if (meta) meta.content = targetScheme;
-      try {
-        if (targetScheme === 'light dark') {
-          localStorage.removeItem('color-scheme');
-        } else {
-          localStorage.setItem('color-scheme', targetScheme);
-        }
-      } catch (e) {}
-
-      this.refreshCurrentVisualizer();
-      this.showToast(`Theme: ${targetScheme}`, 'info');
-    };
-
-    toggleBtn?.addEventListener('click', () => {
-      const currentMeta = meta?.content || 'light dark';
-      let nextScheme = 'dark';
-      if (currentMeta === 'dark') {
-        nextScheme = 'light';
-      } else if (currentMeta === 'light') {
-        nextScheme = 'light dark';
-      } else {
-        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        nextScheme = prefersDark ? 'light' : 'dark';
-      }
-      updateTheme(nextScheme);
-    });
-
-    window.addEventListener('storage', (e) => {
-      if (e.key === 'color-scheme') {
-        if (meta) meta.content = e.newValue || 'light dark';
-        this.refreshCurrentVisualizer();
-      }
-    });
+    if (meta) meta.content = 'dark';
+    try {
+      localStorage.removeItem('color-scheme');
+    } catch (e) {}
   }
 
   // ==========================================

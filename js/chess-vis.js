@@ -1,8 +1,9 @@
 /**
  * TraceMatrix — Chess & Board Visualizer (ChessVisualizer)
- * Tournament-grade N x M Chessboard with Obstacles (#), Multi-Piece Shortest-Path BFS,
- * Live Attack & Safe-Square Coverage, N-Queens (obstacle-aware), Max Non-Attacking Rooks
- * (bipartite matching), Knight's Tour, Distance Overlays, Symmetry Transforms, and Undo/Redo.
+ * Multi-board infinite canvas for N x M Chessboards with Obstacles (#),
+ * Multi-Piece Shortest-Path BFS, Live Attack & Safe-Square Coverage,
+ * obstacle-aware N-Queens, Max Non-Attacking Rooks (bipartite matching),
+ * Knight's Tour, Distance Overlays, Symmetry Transforms, and Undo/Redo.
  */
 
 const MOVABLE_PIECES = new Set(['N', 'Q', 'R', 'B', 'K', 'P']);
@@ -19,17 +20,17 @@ class ChessVisualizer {
     this.ctx = this.canvas?.getContext('2d') || null;
     this.container = document.getElementById('chess-canvas-container');
 
-    this.rows = 8;
-    this.cols = 8;
     this.squareSize = 56;
 
     // Viewport transform
     this.panX = 40;
-    this.panY = 40;
+    this.panY = 60;
     this.zoom = 1.0;
 
-    // Board state: 2D array of { piece: 'N'|'Q'|'R'|'B'|'K'|'P'|'#'|null, color: 'w'|'b' }
-    this.board = [];
+    // Multi-board collection on the same canvas
+    this.nextBoardNum = 1;
+    this.boards = [];
+    this.activeBoardIndex = 0;
 
     // Undo / Redo stacks
     this.undoStack = [];
@@ -41,9 +42,12 @@ class ChessVisualizer {
     this.activeOverlay = 'none'; // 'none' | 'attack' | 'manhattan' | 'chebyshev' | 'bipartite'
 
     // Interaction state
-    this.hoverSquare = null;
-    this.selectedSquare = null;
+    this.hoverInfo = null; // { boardIdx, r, c } or null
     this.isPanning = false;
+    this.isDraggingBoard = false;
+    this.dragBoardIndex = -1;
+    this.dragStartBoardX = 0;
+    this.dragStartBoardY = 0;
     this.isPainting = false;
     this.paintErase = false;
     this.lastPaintedKey = null;
@@ -51,31 +55,14 @@ class ChessVisualizer {
     this.lastMouseY = 0;
     this.needsInitialFit = false;
 
-    // Shortest-Path BFS state (supports N, K, R, B, Q, P; single or multi-source)
-    this.bfsPieceType = null;
-    this.knightStart = null;
-    this.bfsStarts = [];
-    this.knightDistances = null;
-    this.knightParents = null;
-    this.knightTarget = null;
-    this.knightPath = null;
-    this.bfsReachableCount = null;
-    this.bfsTraversableCount = null;
-
-    // N-Queens solver state
-    this.nqueensSolutions = [];
-    this.nqueensIndex = 0;
+    // N-Queens auto-play timer (operates on active board)
     this.nqueensTimer = null;
-
-    // Knight's Tour state
-    this.knightsTourMoves = null;
-
-    // Cached attack coverage (recomputed whenever board renders)
-    this.attackStats = null;
 
     const loaded = this.loadState();
     if (!loaded) {
-      this.initBoard(this.rows, this.cols);
+      this.boards = [this.createBoardEntry(8, 8, 0, 0, 'Board 1')];
+      this.activeBoardIndex = 0;
+      this.syncBoardSelector();
     }
 
     this.initEventListeners();
@@ -84,19 +71,134 @@ class ChessVisualizer {
   }
 
   // ==========================================
-  // BOARD INITIALIZATION & UNDO/REDO
+  // ACTIVE BOARD ACCESSORS (SINGLE & MULTI)
   // ==========================================
 
+  get activeBoard() {
+    if (!this.boards.length) {
+      this.boards = [this.createBoardEntry(8, 8, 0, 0, 'Board 1')];
+      this.activeBoardIndex = 0;
+    }
+    if (this.activeBoardIndex < 0 || this.activeBoardIndex >= this.boards.length) {
+      this.activeBoardIndex = 0;
+    }
+    return this.boards[this.activeBoardIndex];
+  }
+
+  get rows() { return this.activeBoard.rows; }
+  set rows(v) { this.activeBoard.rows = v; }
+  get cols() { return this.activeBoard.cols; }
+  set cols(v) { this.activeBoard.cols = v; }
+  get board() { return this.activeBoard.board; }
+  set board(v) { this.activeBoard.board = v; }
+  get selectedSquare() { return this.activeBoard.selectedSquare; }
+  set selectedSquare(v) { this.activeBoard.selectedSquare = v; }
+  get bfsPieceType() { return this.activeBoard.bfsPieceType; }
+  set bfsPieceType(v) { this.activeBoard.bfsPieceType = v; }
+  get knightStart() { return this.activeBoard.knightStart; }
+  set knightStart(v) { this.activeBoard.knightStart = v; }
+  get bfsStarts() { return this.activeBoard.bfsStarts; }
+  set bfsStarts(v) { this.activeBoard.bfsStarts = v; }
+  get knightDistances() { return this.activeBoard.knightDistances; }
+  set knightDistances(v) { this.activeBoard.knightDistances = v; }
+  get knightParents() { return this.activeBoard.knightParents; }
+  set knightParents(v) { this.activeBoard.knightParents = v; }
+  get knightTarget() { return this.activeBoard.knightTarget; }
+  set knightTarget(v) { this.activeBoard.knightTarget = v; }
+  get knightPath() { return this.activeBoard.knightPath; }
+  set knightPath(v) { this.activeBoard.knightPath = v; }
+  get bfsReachableCount() { return this.activeBoard.bfsReachableCount; }
+  set bfsReachableCount(v) { this.activeBoard.bfsReachableCount = v; }
+  get bfsTraversableCount() { return this.activeBoard.bfsTraversableCount; }
+  set bfsTraversableCount(v) { this.activeBoard.bfsTraversableCount = v; }
+  get nqueensSolutions() { return this.activeBoard.nqueensSolutions; }
+  set nqueensSolutions(v) { this.activeBoard.nqueensSolutions = v; }
+  get nqueensIndex() { return this.activeBoard.nqueensIndex; }
+  set nqueensIndex(v) { this.activeBoard.nqueensIndex = v; }
+  get knightsTourMoves() { return this.activeBoard.knightsTourMoves; }
+  set knightsTourMoves(v) { this.activeBoard.knightsTourMoves = v; }
+  get attackStats() { return this.activeBoard.attackStats; }
+  set attackStats(v) { this.activeBoard.attackStats = v; }
+
+  get hoverSquare() {
+    if (this.hoverInfo && this.hoverInfo.boardIdx === this.activeBoardIndex) {
+      return { r: this.hoverInfo.r, c: this.hoverInfo.c };
+    }
+    return null;
+  }
+
+  set hoverSquare(sq) {
+    this.hoverInfo = sq ? { boardIdx: this.activeBoardIndex, r: sq.r, c: sq.c } : null;
+  }
+
+  createBoardEntry(rows = 8, cols = 8, offsetX = 0, offsetY = 0, name = null, kind = 'chess') {
+    const num = this.nextBoardNum++;
+    const r = Math.max(1, Math.min(30, rows));
+    const c = Math.max(1, Math.min(30, cols));
+    const resolvedKind = kind === 'grid' ? 'grid' : 'chess';
+    return {
+      id: num,
+      kind: resolvedKind,
+      name: name || (resolvedKind === 'grid' ? `Grid ${num}` : `Board ${num}`),
+      rows: r,
+      cols: c,
+      offsetX,
+      offsetY,
+      board: Array.from({ length: r }, () =>
+        Array.from({ length: c }, () => ({ piece: null, color: 'w', val: 0 }))
+      ),
+      selectedSquare: null,
+      bfsPieceType: null,
+      knightStart: null,
+      bfsStarts: [],
+      knightDistances: null,
+      knightParents: null,
+      knightTarget: null,
+      knightPath: null,
+      bfsReachableCount: null,
+      bfsTraversableCount: null,
+      nqueensSolutions: [],
+      nqueensIndex: 0,
+      knightsTourMoves: null,
+      attackStats: null
+    };
+  }
+
+  // ==========================================
+  // UNDO / REDO & MULTI-BOARD MANAGEMENT
+  // ==========================================
+
+  cloneCells(cells) {
+    return cells.map(row => row.map(cell => ({
+      piece: cell.piece,
+      color: cell.color || 'w',
+      val: cell.val !== undefined ? cell.val : 0
+    })));
+  }
+
   cloneBoard(board = this.board) {
-    return board.map(row => row.map(cell => ({ piece: cell.piece, color: cell.color || 'w' })));
+    return this.cloneCells(board);
+  }
+
+  snapshotAllBoards() {
+    return {
+      nextBoardNum: this.nextBoardNum,
+      activeBoardIndex: this.activeBoardIndex,
+      boards: this.boards.map(b => ({
+        id: b.id,
+        kind: b.kind || 'chess',
+        name: b.name,
+        rows: b.rows,
+        cols: b.cols,
+        offsetX: b.offsetX,
+        offsetY: b.offsetY,
+        board: this.cloneCells(b.board)
+      }))
+    };
   }
 
   pushUndo() {
-    this.undoStack.push({
-      rows: this.rows,
-      cols: this.cols,
-      board: this.cloneBoard(this.board)
-    });
+    this.undoStack.push(this.snapshotAllBoards());
     if (this.undoStack.length > this.maxHistory) {
       this.undoStack.shift();
     }
@@ -108,11 +210,7 @@ class ChessVisualizer {
       window.App?.showToast('Nothing to undo', 'info');
       return;
     }
-    this.redoStack.push({
-      rows: this.rows,
-      cols: this.cols,
-      board: this.cloneBoard(this.board)
-    });
+    this.redoStack.push(this.snapshotAllBoards());
     const prev = this.undoStack.pop();
     this.restoreSnapshot(prev);
     window.App?.showToast('Undid board change', 'info');
@@ -123,66 +221,193 @@ class ChessVisualizer {
       window.App?.showToast('Nothing to redo', 'info');
       return;
     }
-    this.undoStack.push({
-      rows: this.rows,
-      cols: this.cols,
-      board: this.cloneBoard(this.board)
-    });
+    this.undoStack.push(this.snapshotAllBoards());
     const next = this.redoStack.pop();
     this.restoreSnapshot(next);
     window.App?.showToast('Redid board change', 'info');
   }
 
   restoreSnapshot(snap) {
-    this.rows = snap.rows;
-    this.cols = snap.cols;
-    this.board = this.cloneBoard(snap.board);
-    this.clearSolverOverlays(false);
-    this.syncDimensionInputs();
+    this.nextBoardNum = snap.nextBoardNum || this.nextBoardNum;
+    this.boards = snap.boards.map(sb => ({
+      ...this.createBoardEntry(sb.rows, sb.cols, sb.offsetX || 0, sb.offsetY || 0, sb.name, sb.kind || 'chess'),
+      id: sb.id,
+      kind: sb.kind || 'chess',
+      name: sb.name,
+      board: this.cloneCells(sb.board)
+    }));
+    // Restore nextBoardNum cleanly after createBoardEntry increments
+    this.nextBoardNum = Math.max(
+      snap.nextBoardNum || 1,
+      ...this.boards.map(b => (b.id || 0) + 1)
+    );
+    this.activeBoardIndex = Math.max(0, Math.min(this.boards.length - 1, snap.activeBoardIndex || 0));
+    this.stopNQueensTimer();
+    this.syncBoardSelector();
     this.render();
     this.saveState();
   }
 
-  syncDimensionInputs() {
-    const badge = document.getElementById('chess-dim-badge');
-    if (badge) badge.textContent = `${this.rows} × ${this.cols}`;
-    const rInput = document.getElementById('chess-rows');
-    const cInput = document.getElementById('chess-cols');
-    if (rInput) rInput.value = this.rows;
-    if (cInput) cInput.value = this.cols;
+  addBoard(cloneActive = false, kind = 'chess') {
+    this.pushUndo();
+    const ref = this.activeBoard;
+    const rows = cloneActive ? ref.rows : (parseInt(document.getElementById('chess-rows')?.value) || 8);
+    const cols = cloneActive ? ref.cols : (parseInt(document.getElementById('chess-cols')?.value) || 8);
+    const targetKind = cloneActive ? (ref.kind || 'chess') : (kind === 'grid' ? 'grid' : 'chess');
+
+    // Place cleanly to the right of rightmost existing board
+    let maxRight = 0;
+    for (const b of this.boards) {
+      maxRight = Math.max(maxRight, b.offsetX + b.cols * this.squareSize);
+    }
+    const offsetX = maxRight + 96;
+    const offsetY = ref.offsetY || 0;
+
+    const entry = this.createBoardEntry(rows, cols, offsetX, offsetY, null, targetKind);
+    if (cloneActive) {
+      entry.board = this.cloneCells(ref.board);
+      entry.name = `${ref.name} Copy`;
+    }
+
+    this.boards.push(entry);
+    this.setActiveBoard(this.boards.length - 1, false);
+    this.fitBoard();
+    this.saveState();
+    window.App?.showToast(
+      cloneActive ? `Cloned ${ref.name} onto canvas` : `Added ${entry.name} (${entry.rows}×${entry.cols}) on canvas`,
+      'success'
+    );
   }
 
-  clearSolverOverlays(stopTimer = true) {
-    if (stopTimer && this.nqueensTimer) {
+  removeActiveBoard() {
+    if (this.boards.length <= 1) {
+      window.App?.showToast('At least one chessboard must remain (use Clear to reset squares)', 'info');
+      return;
+    }
+    this.pushUndo();
+    const removedName = this.activeBoard.name;
+    this.stopNQueensTimer();
+    this.boards.splice(this.activeBoardIndex, 1);
+    this.activeBoardIndex = Math.max(0, Math.min(this.boards.length - 1, this.activeBoardIndex));
+    this.hoverInfo = null;
+    this.syncBoardSelector();
+    this.fitBoard();
+    this.saveState();
+    window.App?.showToast(`Removed ${removedName}`, 'info');
+  }
+
+  setActiveBoard(idx, shouldRender = true) {
+    if (idx < 0 || idx >= this.boards.length) return;
+    if (this.activeBoardIndex !== idx) {
+      this.stopNQueensTimer();
+    }
+    this.activeBoardIndex = idx;
+    this.syncBoardSelector();
+    if (shouldRender) {
+      this.render();
+      this.saveState();
+    }
+  }
+
+  syncBoardSelector() {
+    this.syncDimensionInputs();
+    const tabsBar = document.getElementById('chess-boards-tabs');
+    if (tabsBar) {
+      tabsBar.innerHTML = '';
+      this.boards.forEach((b, i) => {
+        const pill = document.createElement('button');
+        pill.type = 'button';
+        pill.className = `board-tab-pill${i === this.activeBoardIndex ? ' active' : ''}`;
+        pill.dataset.boardIdx = String(i);
+        pill.textContent = b.name;
+        pill.title = `${b.name} (${b.rows} × ${b.cols})`;
+        tabsBar.appendChild(pill);
+      });
+
+      const addBtn = document.createElement('button');
+      addBtn.type = 'button';
+      addBtn.className = 'board-add-pill';
+      addBtn.id = 'btn-chess-add-board';
+      addBtn.title = 'Add Another Chessboard on Canvas';
+      addBtn.textContent = '+ Chess';
+      tabsBar.appendChild(addBtn);
+
+      const addGridBtn = document.createElement('button');
+      addGridBtn.type = 'button';
+      addGridBtn.className = 'board-add-pill';
+      addGridBtn.id = 'btn-chess-add-grid';
+      addGridBtn.title = 'Add a Grid on Canvas';
+      addGridBtn.textContent = '+ Grid';
+      tabsBar.appendChild(addGridBtn);
+    }
+
+    const delBtn = document.getElementById('btn-chess-del-board');
+    if (delBtn) {
+      delBtn.disabled = this.boards.length <= 1;
+    }
+
+    const browser = document.getElementById('nqueens-browser');
+    const counter = document.getElementById('nqueens-solution-counter');
+    if (browser) {
+      if (this.nqueensSolutions?.length > 0) {
+        browser.classList.remove('hidden');
+        if (counter) counter.textContent = `${this.nqueensIndex + 1} / ${this.nqueensSolutions.length}`;
+      } else {
+        browser.classList.add('hidden');
+      }
+    }
+  }
+
+  syncDimensionInputs() {
+    const b = this.activeBoard;
+    const badge = document.getElementById('chess-dim-badge');
+    if (badge) {
+      badge.textContent = this.boards.length > 1 ? `B${this.activeBoardIndex + 1} · ${b.rows} × ${b.cols}` : `${b.rows} × ${b.cols}`;
+    }
+    const rInput = document.getElementById('chess-rows');
+    const cInput = document.getElementById('chess-cols');
+    if (rInput) rInput.value = b.rows;
+    if (cInput) cInput.value = b.cols;
+  }
+
+  stopNQueensTimer() {
+    if (this.nqueensTimer) {
       clearInterval(this.nqueensTimer);
       this.nqueensTimer = null;
       const playBtn = document.getElementById('btn-nq-play');
       if (playBtn) playBtn.textContent = 'Auto';
     }
-    this.bfsPieceType = null;
-    this.knightStart = null;
-    this.bfsStarts = [];
-    this.knightDistances = null;
-    this.knightParents = null;
-    this.knightTarget = null;
-    this.knightPath = null;
-    this.bfsReachableCount = null;
-    this.bfsTraversableCount = null;
-    this.knightsTourMoves = null;
-    this.nqueensSolutions = [];
-    const browser = document.getElementById('nqueens-browser');
-    if (browser) browser.classList.add('hidden');
+  }
+
+  clearSolverOverlays(stopTimer = true, boardObj = this.activeBoard) {
+    if (stopTimer) this.stopNQueensTimer();
+    boardObj.bfsPieceType = null;
+    boardObj.knightStart = null;
+    boardObj.bfsStarts = [];
+    boardObj.knightDistances = null;
+    boardObj.knightParents = null;
+    boardObj.knightTarget = null;
+    boardObj.knightPath = null;
+    boardObj.bfsReachableCount = null;
+    boardObj.bfsTraversableCount = null;
+    boardObj.knightsTourMoves = null;
+    boardObj.nqueensSolutions = [];
+    if (boardObj === this.activeBoard) {
+      const browser = document.getElementById('nqueens-browser');
+      if (browser) browser.classList.add('hidden');
+    }
   }
 
   initBoard(rows, cols) {
-    this.rows = Math.max(1, Math.min(30, rows));
-    this.cols = Math.max(1, Math.min(30, cols));
-    this.board = Array.from({ length: this.rows }, () =>
-      Array.from({ length: this.cols }, () => ({ piece: null, color: 'w' }))
+    const b = this.activeBoard;
+    b.rows = Math.max(1, Math.min(30, rows));
+    b.cols = Math.max(1, Math.min(30, cols));
+    b.board = Array.from({ length: b.rows }, () =>
+      Array.from({ length: b.cols }, () => ({ piece: null, color: 'w' }))
     );
-    this.selectedSquare = null;
-    this.clearSolverOverlays();
-    this.syncDimensionInputs();
+    b.selectedSquare = null;
+    this.clearSolverOverlays(true, b);
+    this.syncBoardSelector();
   }
 
   // ==========================================
@@ -209,6 +434,20 @@ class ChessVisualizer {
     this.render();
   }
 
+  getAllBoardsBounds() {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const b of this.boards) {
+      minX = Math.min(minX, b.offsetX);
+      minY = Math.min(minY, b.offsetY - 52); // Include board title pill & file labels
+      maxX = Math.max(maxX, b.offsetX + b.cols * this.squareSize);
+      maxY = Math.max(maxY, b.offsetY + b.rows * this.squareSize);
+    }
+    return { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY };
+  }
+
   fitBoard() {
     if (!this.container) return;
     const rect = this.container.getBoundingClientRect();
@@ -217,14 +456,17 @@ class ChessVisualizer {
       return;
     }
     this.needsInitialFit = false;
-    const totalW = this.cols * this.squareSize;
-    const totalH = this.rows * this.squareSize;
-    const pad = 60;
-    const scaleX = (rect.width - pad * 2) / totalW;
-    const scaleY = (rect.height - pad * 2) / totalH;
-    this.zoom = Math.max(0.25, Math.min(1.8, Math.min(scaleX, scaleY) || 1.0));
-    this.panX = Math.round((rect.width - totalW * this.zoom) / 2);
-    this.panY = Math.round((rect.height - totalH * this.zoom) / 2);
+
+    const bounds = this.getAllBoardsBounds();
+    const padX = 56;
+    const padY = 48;
+    const scaleX = (rect.width - padX * 2) / Math.max(1, bounds.width);
+    const scaleY = (rect.height - padY * 2) / Math.max(1, bounds.height);
+    this.zoom = Math.max(0.22, Math.min(1.65, Math.min(scaleX, scaleY) || 1.0));
+    const centerWorldX = bounds.minX + bounds.width / 2;
+    const centerWorldY = bounds.minY + bounds.height / 2;
+    this.panX = Math.round(rect.width / 2 - centerWorldX * this.zoom);
+    this.panY = Math.round(rect.height / 2 - centerWorldY * this.zoom);
     this.updateStatusPill();
     this.render();
   }
@@ -233,10 +475,11 @@ class ChessVisualizer {
     if (!this.container) return;
     this.zoom = 1.0;
     const rect = this.container.getBoundingClientRect();
-    const totalW = this.cols * this.squareSize;
-    const totalH = this.rows * this.squareSize;
-    this.panX = Math.round((rect.width - totalW) / 2);
-    this.panY = Math.round((rect.height - totalH) / 2);
+    const b = this.activeBoard;
+    const centerWorldX = b.offsetX + (b.cols * this.squareSize) / 2;
+    const centerWorldY = b.offsetY + (b.rows * this.squareSize) / 2;
+    this.panX = Math.round(rect.width / 2 - centerWorldX);
+    this.panY = Math.round(rect.height / 2 - centerWorldY);
     this.updateStatusPill();
     this.render();
   }
@@ -277,7 +520,7 @@ class ChessVisualizer {
       this.initBoard(r, c);
       this.fitBoard();
       this.saveState();
-      window.App?.showToast(`Chessboard set to ${this.rows} × ${this.cols}`, 'info');
+      window.App?.showToast(`${this.activeBoard.name} resized to ${this.rows} × ${this.cols}`, 'info');
     });
 
     document.querySelectorAll('[data-chess-size]').forEach(btn => {
@@ -287,9 +530,32 @@ class ChessVisualizer {
         this.initBoard(r, c);
         this.fitBoard();
         this.saveState();
-        window.App?.showToast(`Chessboard set to ${r} × ${c}`, 'info');
+        window.App?.showToast(`${this.activeBoard.name} set to ${r} × ${c}`, 'info');
       });
     });
+
+    // Multi-board controls (delegated on pill bar)
+    document.getElementById('chess-boards-tabs')?.addEventListener('click', (e) => {
+      const addChessBtn = e.target.closest('#btn-chess-add-board');
+      if (addChessBtn) {
+        this.addBoard(false, 'chess');
+        return;
+      }
+      const addGridBtn = e.target.closest('#btn-chess-add-grid');
+      if (addGridBtn) {
+        this.addBoard(false, 'grid');
+        return;
+      }
+      const tabBtn = e.target.closest('[data-board-idx]');
+      if (tabBtn) {
+        const idx = parseInt(tabBtn.dataset.boardIdx, 10);
+        if (!Number.isNaN(idx)) {
+          this.setActiveBoard(idx, true);
+        }
+      }
+    });
+    document.getElementById('btn-chess-dup-board')?.addEventListener('click', () => this.addBoard(true));
+    document.getElementById('btn-chess-del-board')?.addEventListener('click', () => this.removeActiveBoard());
 
     // Undo / Redo / Random Walls / Clear
     document.getElementById('btn-chess-undo')?.addEventListener('click', () => this.undo());
@@ -300,7 +566,7 @@ class ChessVisualizer {
       this.initBoard(this.rows, this.cols);
       this.render();
       this.saveState();
-      window.App?.showToast('Cleared board', 'info');
+      window.App?.showToast(`Cleared ${this.activeBoard.name}`, 'info');
     });
 
     // Symmetry & Export
@@ -339,6 +605,7 @@ class ChessVisualizer {
     // Canvas Events
     if (this.canvas) {
       this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+      this.canvas.addEventListener('dblclick', (e) => this.handleDoubleClick(e));
       this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
       this.canvas.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
     }
@@ -363,21 +630,51 @@ class ChessVisualizer {
     this.render();
   }
 
-  screenToSquare(sx, sy) {
-    const sz = this.squareSize * this.zoom;
-    const col = Math.floor((sx - this.panX) / sz);
-    const row = Math.floor((sy - this.panY) / sz);
-    if (row >= 0 && row < this.rows && col >= 0 && col < this.cols) {
-      return { r: row, c: col };
+  /**
+   * Maps screen pixel coordinates to either a board's draggable title handle or a specific square.
+   */
+  hitTestCanvas(sx, sy) {
+    const worldX = (sx - this.panX) / this.zoom;
+    const worldY = (sy - this.panY) / this.zoom;
+
+    for (let bi = this.boards.length - 1; bi >= 0; bi--) {
+      const b = this.boards[bi];
+      const lx = worldX - b.offsetX;
+      const ly = worldY - b.offsetY;
+      const boardW = b.cols * this.squareSize;
+      const boardH = b.rows * this.squareSize;
+
+      // Board title pill drag bar (above file labels)
+      const headerW = Math.max(130 / this.zoom, Math.min(boardW, 240 / this.zoom));
+      if (lx >= -2 && lx <= headerW && ly >= -44 / this.zoom && ly <= -18 / this.zoom) {
+        return { type: 'header', boardIdx: bi };
+      }
+
+      // Square inside board
+      if (lx >= 0 && lx < boardW && ly >= 0 && ly < boardH) {
+        const c = Math.floor(lx / this.squareSize);
+        const r = Math.floor(ly / this.squareSize);
+        if (r >= 0 && r < b.rows && c >= 0 && c < b.cols) {
+          return { type: 'square', boardIdx: bi, r, c };
+        }
+      }
     }
     return null;
   }
 
-  applyCellStroke(r, c, tool) {
-    const cur = this.board[r][c].piece;
+  screenToSquare(sx, sy) {
+    const hit = this.hitTestCanvas(sx, sy);
+    if (hit && hit.type === 'square') {
+      return { r: hit.r, c: hit.c, boardIdx: hit.boardIdx };
+    }
+    return null;
+  }
+
+  applyCellStroke(r, c, tool, boardObj = this.activeBoard) {
+    const cur = boardObj.board[r]?.[c]?.piece;
     const target = tool === 'erase' ? null : tool;
     if (cur === target) return false;
-    this.board[r][c].piece = target;
+    boardObj.board[r][c].piece = target;
     return true;
   }
 
@@ -390,9 +687,9 @@ class ChessVisualizer {
     }
 
     const rect = this.container.getBoundingClientRect();
-    const sq = this.screenToSquare(e.clientX - rect.left, e.clientY - rect.top);
+    const hit = this.hitTestCanvas(e.clientX - rect.left, e.clientY - rect.top);
 
-    if (!sq) {
+    if (!hit) {
       if (e.button === 0) {
         this.isPanning = true;
         this.lastMouseX = e.clientX;
@@ -401,15 +698,34 @@ class ChessVisualizer {
       return;
     }
 
-    this.selectedSquare = sq;
+    // Activate whichever board was clicked
+    this.setActiveBoard(hit.boardIdx, false);
+    const b = this.activeBoard;
 
-    // Right-click always erases cell (with drag support)
+    // Header drag to reposition board cleanly on canvas
+    if (hit.type === 'header' && e.button === 0) {
+      this.pushUndo();
+      this.isDraggingBoard = true;
+      this.dragBoardIndex = hit.boardIdx;
+      this.dragStartBoardX = b.offsetX;
+      this.dragStartBoardY = b.offsetY;
+      this.lastMouseX = e.clientX;
+      this.lastMouseY = e.clientY;
+      this.render();
+      return;
+    }
+
+    if (hit.type !== 'square') return;
+    b.selectedSquare = { r: hit.r, c: hit.c };
+
+    // Right-click erases piece/wall (supports drag-erase)
     if (e.button === 2) {
       this.pushUndo();
       this.isPainting = true;
       this.paintErase = true;
-      this.lastPaintedKey = `${sq.r},${sq.c}`;
-      this.applyCellStroke(sq.r, sq.c, 'erase');
+      this.lastPaintedKey = `${hit.boardIdx}:${hit.r},${hit.c}`;
+      this.applyCellStroke(hit.r, hit.c, 'erase', b);
+      this.clearSolverOverlays(true, b);
       this.render();
       this.saveState();
       return;
@@ -417,14 +733,13 @@ class ChessVisualizer {
 
     if (e.button !== 0) return;
 
-    // In active BFS mode, clicking a square traces shortest path to it
-    if (this.knightDistances && this.bfsStarts.length > 0 && this.activePiece !== '#' && this.activePiece !== 'erase') {
-      this.traceKnightPath(sq.r, sq.c);
+    // In active BFS mode, clicking a square traces shortest path on that board
+    if (b.knightDistances && b.bfsStarts.length > 0 && this.activePiece !== '#' && this.activePiece !== 'erase') {
+      this.traceKnightPath(hit.r, hit.c);
       this.render();
       return;
     }
 
-    // Select / Inspect mode never mutates the board
     if (this.activePiece === 'select') {
       this.render();
       return;
@@ -434,15 +749,14 @@ class ChessVisualizer {
     if (this.activePiece === '#' || this.activePiece === 'erase') {
       this.isPainting = true;
       this.paintErase = this.activePiece === 'erase';
-      this.lastPaintedKey = `${sq.r},${sq.c}`;
-      this.applyCellStroke(sq.r, sq.c, this.activePiece);
+      this.lastPaintedKey = `${hit.boardIdx}:${hit.r},${hit.c}`;
+      this.applyCellStroke(hit.r, hit.c, this.activePiece, b);
     } else {
-      const cur = this.board[sq.r][sq.c].piece;
-      this.board[sq.r][sq.c].piece = cur === this.activePiece ? null : this.activePiece;
+      const cur = b.board[hit.r][hit.c].piece;
+      b.board[hit.r][hit.c].piece = cur === this.activePiece ? null : this.activePiece;
     }
 
-    // Clear stale solver paths on manual board edit (keep activeOverlay such as attack map live)
-    this.clearSolverOverlays();
+    this.clearSolverOverlays(true, b);
     this.render();
     this.saveState();
   }
@@ -453,6 +767,17 @@ class ChessVisualizer {
     const sx = e.clientX - rect.left;
     const sy = e.clientY - rect.top;
 
+    if (this.isDraggingBoard && this.dragBoardIndex >= 0 && this.boards[this.dragBoardIndex]) {
+      const dx = (e.clientX - this.lastMouseX) / this.zoom;
+      const dy = (e.clientY - this.lastMouseY) / this.zoom;
+      this.boards[this.dragBoardIndex].offsetX += dx;
+      this.boards[this.dragBoardIndex].offsetY += dy;
+      this.lastMouseX = e.clientX;
+      this.lastMouseY = e.clientY;
+      this.render();
+      return;
+    }
+
     if (this.isPanning) {
       this.panX += e.clientX - this.lastMouseX;
       this.panY += e.clientY - this.lastMouseY;
@@ -462,16 +787,19 @@ class ChessVisualizer {
       return;
     }
 
-    const sq = this.screenToSquare(sx, sy);
-    this.hoverSquare = sq;
+    const hit = this.hitTestCanvas(sx, sy);
+    this.hoverInfo = hit && hit.type === 'square' ? { boardIdx: hit.boardIdx, r: hit.r, c: hit.c } : null;
+    if (this.canvas) {
+      this.canvas.style.cursor = hit?.type === 'header' ? 'grab' : 'default';
+    }
 
-    if (this.isPainting && sq) {
-      const key = `${sq.r},${sq.c}`;
+    if (this.isPainting && hit && hit.type === 'square' && hit.boardIdx === this.activeBoardIndex) {
+      const key = `${hit.boardIdx}:${hit.r},${hit.c}`;
       if (key !== this.lastPaintedKey) {
         this.lastPaintedKey = key;
         const tool = this.paintErase ? 'erase' : '#';
-        if (this.applyCellStroke(sq.r, sq.c, tool)) {
-          this.clearSolverOverlays();
+        if (this.applyCellStroke(hit.r, hit.c, tool, this.activeBoard)) {
+          this.clearSolverOverlays(true, this.activeBoard);
         }
       }
     }
@@ -481,6 +809,11 @@ class ChessVisualizer {
   }
 
   handleMouseUp() {
+    if (this.isDraggingBoard) {
+      this.isDraggingBoard = false;
+      this.dragBoardIndex = -1;
+      this.saveState();
+    }
     if (this.isPainting) {
       this.isPainting = false;
       this.paintErase = false;
@@ -490,15 +823,87 @@ class ChessVisualizer {
     this.isPanning = false;
   }
 
+  handleDoubleClick(e) {
+    if (!this.container) return;
+    const rect = this.container.getBoundingClientRect();
+    const hit = this.hitTestCanvas(e.clientX - rect.left, e.clientY - rect.top);
+    if (!hit || hit.type !== 'square') return;
+    const b = this.boards[hit.boardIdx];
+    if (!b || b.kind !== 'grid') return;
+    this.setActiveBoard(hit.boardIdx, false);
+    this.editCellInline(hit.r, hit.c, b);
+  }
+
+  removeInlineEditor() {
+    const existing = this.container?.querySelector('.cell-inline-input');
+    if (existing) existing.remove();
+  }
+
+  editCellInline(r, c, b = this.activeBoard) {
+    this.removeInlineEditor();
+    const cell = b.board[r]?.[c];
+    if (!cell) return;
+    const sz = this.squareSize * this.zoom;
+    const cellX = this.panX + b.offsetX * this.zoom + c * sz;
+    const cellY = this.panY + b.offsetY * this.zoom + r * sz;
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'cell-inline-input';
+    input.value = cell.piece === '#' ? '#' : (cell.piece || (cell.val !== undefined ? cell.val : 0));
+    input.style.left = `${Math.round(cellX)}px`;
+    input.style.top = `${Math.round(cellY)}px`;
+    input.style.width = `${Math.round(sz)}px`;
+    input.style.height = `${Math.round(sz)}px`;
+    input.style.fontSize = `${Math.round(Math.max(10, sz * 0.36))}px`;
+
+    let committed = false;
+    const commit = () => {
+      if (committed) return;
+      committed = true;
+      const raw = input.value.trim();
+      this.pushUndo();
+      if (raw === '#') {
+        cell.piece = '#';
+        cell.val = '#';
+      } else if (MOVABLE_PIECES.has(raw.toUpperCase())) {
+        cell.piece = raw.toUpperCase();
+      } else {
+        cell.piece = null;
+        const num = Number(raw);
+        cell.val = raw === '' ? 0 : (!isNaN(num) && Number.isFinite(num) ? num : raw);
+      }
+      this.clearSolverOverlays(true, b);
+      this.render();
+      input.remove();
+      this.saveState();
+    };
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        commit();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        committed = true;
+        input.remove();
+      }
+    });
+    input.addEventListener('blur', commit);
+    this.container.appendChild(input);
+    input.focus();
+    input.select();
+  }
+
   // ==========================================
   // NOTATION, STATUS & INSPECTOR
   // ==========================================
 
-  getSquareNotation(r, c) {
+  getSquareNotation(r, c, boardObj = this.activeBoard) {
     const isOneIdx = window.App?.isOneIndexed;
-    if (this.rows <= 26 && this.cols <= 26 && !isOneIdx) {
+    if (boardObj.kind !== 'grid' && boardObj.rows <= 26 && boardObj.cols <= 26 && !isOneIdx) {
       const file = String.fromCharCode(97 + c);
-      const rank = this.rows - r;
+      const rank = boardObj.rows - r;
       return `${file}${rank}`;
     }
     const rDisp = isOneIdx ? r + 1 : r;
@@ -526,58 +931,58 @@ class ChessVisualizer {
 
     if (statusZoom) statusZoom.textContent = `Zoom: ${Math.round(this.zoom * 100)}%`;
 
-    if (!this.hoverSquare) {
-      if (statusSq) statusSq.textContent = 'Square: -';
+    if (!this.hoverInfo || !this.boards[this.hoverInfo.boardIdx]) {
+      if (statusSq) statusSq.textContent = this.boards.length > 1 ? `${this.activeBoard.name} | Square: -` : 'Square: -';
       if (statusInfo) statusInfo.textContent = 'Piece: None';
       return;
     }
 
-    const { r, c } = this.hoverSquare;
-    const notation = this.getSquareNotation(r, c);
-    const piece = this.board[r]?.[c]?.piece || null;
+    const { boardIdx, r, c } = this.hoverInfo;
+    const b = this.boards[boardIdx];
+    const notation = this.getSquareNotation(r, c, b);
+    const piece = b.board[r]?.[c]?.piece || null;
     const isLight = (r + c) % 2 === 0;
+    const prefix = this.boards.length > 1 ? `${b.name} · ` : '';
 
-    if (statusSq) statusSq.textContent = `Square: ${notation} [${isLight ? 'Light' : 'Dark'}]`;
+    if (statusSq) statusSq.textContent = `${prefix}${notation} [${isLight ? 'Light' : 'Dark'}]`;
     if (statusInfo) {
       const parts = [piece ? this.getPieceName(piece) : 'Empty'];
-      const atkCount = this.attackStats?.counts?.[r]?.[c] || 0;
+      const atkCount = b.attackStats?.counts?.[r]?.[c] || 0;
       if (atkCount > 0 && piece !== '#') {
         parts.push(`Attacked ×${atkCount}`);
       }
-      if (this.knightDistances) {
-        const d = this.knightDistances[r][c];
-        parts.push(`${this.bfsPieceType || 'N'} Moves: ${d !== Infinity ? d : '∞'}`);
+      if (b.knightDistances) {
+        const d = b.knightDistances[r][c];
+        parts.push(`${b.bfsPieceType || 'N'} Moves: ${d !== Infinity ? d : '∞'}`);
       }
       statusInfo.textContent = parts.join(' | ');
     }
   }
 
   updateInspector() {
-    const stats = this.attackStats;
+    const b = this.activeBoard;
+    const stats = b.attackStats;
     const countsEl = document.getElementById('chess-stat-counts');
     const attackEl = document.getElementById('chess-stat-attack');
     const bfsEl = document.getElementById('chess-stat-bfs');
     const pathEl = document.getElementById('chess-stat-path');
 
-    if (countsEl && stats) {
-      countsEl.textContent = `${stats.pieceCount} / ${stats.wallCount}`;
-    }
-    if (attackEl && stats) {
-      attackEl.textContent = `${stats.attackedSquares} / ${stats.safeSquares}`;
-    }
+    if (countsEl && stats) countsEl.textContent = `${stats.pieceCount} / ${stats.wallCount}`;
+    if (attackEl && stats) attackEl.textContent = `${stats.attackedSquares} / ${stats.safeSquares}`;
+
     if (bfsEl) {
-      if (this.knightDistances && this.bfsReachableCount !== null) {
-        bfsEl.textContent = `${this.bfsReachableCount} / ${this.bfsTraversableCount}`;
-      } else {
-        bfsEl.textContent = '-';
-      }
+      bfsEl.textContent =
+        b.knightDistances && b.bfsReachableCount !== null
+          ? `${b.bfsReachableCount} / ${b.bfsTraversableCount}`
+          : '-';
     }
+
     if (pathEl) {
-      if (this.knightPath && this.knightPath.length >= 1) {
-        const moves = this.knightPath.length - 1;
-        const start = this.knightPath[0];
-        const end = this.knightPath[this.knightPath.length - 1];
-        pathEl.textContent = `${moves} (${this.getSquareNotation(start[0], start[1])}→${this.getSquareNotation(end[0], end[1])})`;
+      if (b.knightPath && b.knightPath.length >= 1) {
+        const moves = b.knightPath.length - 1;
+        const start = b.knightPath[0];
+        const end = b.knightPath[b.knightPath.length - 1];
+        pathEl.textContent = `${moves} (${this.getSquareNotation(start[0], start[1], b)}→${this.getSquareNotation(end[0], end[1], b)})`;
       } else {
         pathEl.textContent = '-';
       }
@@ -589,12 +994,14 @@ class ChessVisualizer {
   // ==========================================
 
   /**
-   * Computes which squares are attacked by all placed pieces on the board.
+   * Computes which squares are attacked by all placed pieces on a board.
    * Walls (#) stop sliding rays and are excluded from attacked/safe counts.
-   * Any placed piece on a ray receives an attack increment and blocks the ray past it.
    */
-  computeAttackMap() {
-    const counts = Array.from({ length: this.rows }, () => Array(this.cols).fill(0));
+  computeAttackMap(boardObj = this.activeBoard) {
+    const rows = boardObj.rows;
+    const cols = boardObj.cols;
+    const cells = boardObj.board;
+    const counts = Array.from({ length: rows }, () => Array(cols).fill(0));
     let pieceCount = 0;
     let wallCount = 0;
 
@@ -602,11 +1009,11 @@ class ChessVisualizer {
       for (const [dr, dc] of dirs) {
         let nr = sr + dr;
         let nc = sc + dc;
-        while (nr >= 0 && nr < this.rows && nc >= 0 && nc < this.cols) {
-          const target = this.board[nr][nc].piece;
+        while (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
+          const target = cells[nr][nc].piece;
           if (target === '#') break;
           counts[nr][nc]++;
-          if (target) break; // Piece absorbs ray and blocks cells behind it
+          if (target) break;
           nr += dr;
           nc += dc;
         }
@@ -617,17 +1024,15 @@ class ChessVisualizer {
       for (const [dr, dc] of dirs) {
         const nr = sr + dr;
         const nc = sc + dc;
-        if (nr >= 0 && nr < this.rows && nc >= 0 && nc < this.cols) {
-          if (this.board[nr][nc].piece !== '#') {
-            counts[nr][nc]++;
-          }
+        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && cells[nr][nc].piece !== '#') {
+          counts[nr][nc]++;
         }
       }
     };
 
-    for (let r = 0; r < this.rows; r++) {
-      for (let c = 0; c < this.cols; c++) {
-        const p = this.board[r][c].piece;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const p = cells[r][c].piece;
         if (p === '#') {
           wallCount++;
           continue;
@@ -648,25 +1053,18 @@ class ChessVisualizer {
     let safeSquares = 0;
     const conflicts = new Set();
 
-    for (let r = 0; r < this.rows; r++) {
-      for (let c = 0; c < this.cols; c++) {
-        const p = this.board[r][c].piece;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const p = cells[r][c].piece;
         if (p === '#') continue;
-        if (p && counts[r][c] > 0) {
-          conflicts.add(`${r},${c}`);
-        }
-        if (counts[r][c] > 0 && !p) {
-          attackedSquares++;
-        } else if (p && counts[r][c] > 0) {
-          attackedSquares++;
-        } else if (!p && counts[r][c] === 0) {
-          safeSquares++;
-        }
+        if (p && counts[r][c] > 0) conflicts.add(`${r},${c}`);
+        if (counts[r][c] > 0) attackedSquares++;
+        else if (!p) safeSquares++;
       }
     }
 
-    this.attackStats = { counts, attackedSquares, safeSquares, conflicts, pieceCount, wallCount };
-    return this.attackStats;
+    boardObj.attackStats = { counts, attackedSquares, safeSquares, conflicts, pieceCount, wallCount };
+    return boardObj.attackStats;
   }
 
   toggleAttackOverlay() {
@@ -679,7 +1077,7 @@ class ChessVisualizer {
     const s = this.attackStats;
     if (this.activeOverlay === 'attack' && s) {
       window.App?.showToast(
-        `Attack Map: ${s.attackedSquares} attacked, ${s.safeSquares} safe squares${s.conflicts.size ? ` (${s.conflicts.size} conflicts!)` : ''}`,
+        `${this.activeBoard.name}: ${s.attackedSquares} attacked, ${s.safeSquares} safe${s.conflicts.size ? ` (${s.conflicts.size} conflicts!)` : ''}`,
         s.conflicts.size > 0 ? 'info' : 'success'
       );
     }
@@ -687,77 +1085,67 @@ class ChessVisualizer {
 
   syncOverlayButtons() {
     const atkBtn = document.getElementById('btn-attack-map');
-    if (atkBtn) {
-      atkBtn.classList.toggle('active', this.activeOverlay === 'attack');
-    }
+    if (atkBtn) atkBtn.classList.toggle('active', this.activeOverlay === 'attack');
   }
 
   // ==========================================
   // GENERALIZED PIECE SHORTEST-PATH BFS
   // ==========================================
 
-  findFirstNonWallSquare() {
-    for (let r = 0; r < this.rows; r++) {
-      for (let c = 0; c < this.cols; c++) {
-        if (this.board[r][c].piece !== '#') return { r, c };
+  findFirstNonWallSquare(boardObj = this.activeBoard) {
+    for (let r = 0; r < boardObj.rows; r++) {
+      for (let c = 0; c < boardObj.cols; c++) {
+        if (boardObj.board[r][c].piece !== '#') return { r, c };
       }
     }
     return null;
   }
 
   resolveBFSSources() {
-    // Priority 1: currently selected square has a movable piece
-    if (this.selectedSquare) {
-      const selPiece = this.board[this.selectedSquare.r]?.[this.selectedSquare.c]?.piece;
+    const b = this.activeBoard;
+
+    if (b.selectedSquare) {
+      const selPiece = b.board[b.selectedSquare.r]?.[b.selectedSquare.c]?.piece;
       if (MOVABLE_PIECES.has(selPiece)) {
-        return { pieceType: selPiece, starts: [{ ...this.selectedSquare }] };
+        return { pieceType: selPiece, starts: [{ ...b.selectedSquare }] };
       }
     }
 
-    // Priority 2: all placed pieces matching activePiece tool (if it is a chess piece)
     if (MOVABLE_PIECES.has(this.activePiece)) {
       const matching = [];
-      for (let r = 0; r < this.rows; r++) {
-        for (let c = 0; c < this.cols; c++) {
-          if (this.board[r][c].piece === this.activePiece) {
-            matching.push({ r, c });
-          }
+      for (let r = 0; r < b.rows; r++) {
+        for (let c = 0; c < b.cols; c++) {
+          if (b.board[r][c].piece === this.activePiece) matching.push({ r, c });
         }
       }
-      if (matching.length > 0) {
-        return { pieceType: this.activePiece, starts: matching };
-      }
+      if (matching.length > 0) return { pieceType: this.activePiece, starts: matching };
     }
 
-    // Priority 3: first piece type found anywhere on the board (multi-source for that type)
     let firstPiece = null;
-    for (let r = 0; r < this.rows && !firstPiece; r++) {
-      for (let c = 0; c < this.cols && !firstPiece; c++) {
-        if (MOVABLE_PIECES.has(this.board[r][c].piece)) {
-          firstPiece = this.board[r][c].piece;
-        }
+    for (let r = 0; r < b.rows && !firstPiece; r++) {
+      for (let c = 0; c < b.cols && !firstPiece; c++) {
+        if (MOVABLE_PIECES.has(b.board[r][c].piece)) firstPiece = b.board[r][c].piece;
       }
     }
     if (firstPiece) {
       const starts = [];
-      for (let r = 0; r < this.rows; r++) {
-        for (let c = 0; c < this.cols; c++) {
-          if (this.board[r][c].piece === firstPiece) starts.push({ r, c });
+      for (let r = 0; r < b.rows; r++) {
+        for (let c = 0; c < b.cols; c++) {
+          if (b.board[r][c].piece === firstPiece) starts.push({ r, c });
         }
       }
       return { pieceType: firstPiece, starts };
     }
 
-    // Priority 4: empty board — place active piece (or Knight) at first non-wall square
     const chosen = MOVABLE_PIECES.has(this.activePiece) ? this.activePiece : 'N';
     const startSq =
-      this.selectedSquare && this.board[this.selectedSquare.r]?.[this.selectedSquare.c]?.piece !== '#'
-        ? { ...this.selectedSquare }
-        : this.findFirstNonWallSquare();
+      b.selectedSquare && b.board[b.selectedSquare.r]?.[b.selectedSquare.c]?.piece !== '#'
+        ? { ...b.selectedSquare }
+        : this.findFirstNonWallSquare(b);
 
     if (!startSq) return null;
     this.pushUndo();
-    this.board[startSq.r][startSq.c].piece = chosen;
+    b.board[startSq.r][startSq.c].piece = chosen;
     this.saveState();
     return { pieceType: chosen, starts: [startSq] };
   }
@@ -769,37 +1157,37 @@ class ChessVisualizer {
       return;
     }
 
-    this.bfsPieceType = resolved.pieceType;
-    this.bfsStarts = resolved.starts;
-    this.knightStart = resolved.starts[0];
-    this.knightPath = null;
-    this.knightTarget = null;
-    this.knightsTourMoves = null;
+    const b = this.activeBoard;
+    b.bfsPieceType = resolved.pieceType;
+    b.bfsStarts = resolved.starts;
+    b.knightStart = resolved.starts[0];
+    b.knightPath = null;
+    b.knightTarget = null;
+    b.knightsTourMoves = null;
 
-    this.computePieceBFS(resolved.starts, resolved.pieceType);
+    this.computePieceBFS(resolved.starts, resolved.pieceType, b);
     this.render();
 
     const originLabel =
       resolved.starts.length === 1
-        ? this.getSquareNotation(resolved.starts[0].r, resolved.starts[0].c)
+        ? this.getSquareNotation(resolved.starts[0].r, resolved.starts[0].c, b)
         : `${resolved.starts.length} sources`;
     window.App?.showToast(
-      `${this.getPieceName(resolved.pieceType)} BFS from ${originLabel}: ${this.bfsReachableCount}/${this.bfsTraversableCount} reachable. Click any cell for path!`,
+      `${b.name} ${this.getPieceName(resolved.pieceType)} BFS (${originLabel}): ${b.bfsReachableCount}/${b.bfsTraversableCount} reachable. Click square for path!`,
       'success'
     );
   }
 
-  /**
-   * Computes single- or multi-source minimum-move distances on the current board for pieceType.
-   * Respects '#' walls (blocked for landing and for sliding rays; Knights jump over walls cleanly).
-   */
-  computePieceBFS(starts, pieceType = 'N') {
-    const dist = Array.from({ length: this.rows }, () => Array(this.cols).fill(Infinity));
-    const parents = Array.from({ length: this.rows }, () => Array(this.cols).fill(null));
+  computePieceBFS(starts, pieceType = 'N', boardObj = this.activeBoard) {
+    const rows = boardObj.rows;
+    const cols = boardObj.cols;
+    const cells = boardObj.board;
+    const dist = Array.from({ length: rows }, () => Array(cols).fill(Infinity));
+    const parents = Array.from({ length: rows }, () => Array(cols).fill(null));
     const queue = [];
 
     for (const s of starts) {
-      if (this.board[s.r]?.[s.c]?.piece === '#') continue;
+      if (cells[s.r]?.[s.c]?.piece === '#') continue;
       dist[s.r][s.c] = 0;
       queue.push([s.r, s.c]);
     }
@@ -827,8 +1215,8 @@ class ChessVisualizer {
         for (const [dr, dc] of dirs) {
           const nr = r + dr;
           const nc = c + dc;
-          if (nr < 0 || nr >= this.rows || nc < 0 || nc >= this.cols) continue;
-          if (this.board[nr][nc].piece === '#') continue;
+          if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
+          if (cells[nr][nc].piece === '#') continue;
           if (dist[nr][nc] === Infinity) {
             dist[nr][nc] = nextDist;
             parents[nr][nc] = [r, c];
@@ -839,8 +1227,8 @@ class ChessVisualizer {
         for (const [dr, dc] of dirs) {
           let nr = r + dr;
           let nc = c + dc;
-          while (nr >= 0 && nr < this.rows && nc >= 0 && nc < this.cols) {
-            const cellPiece = this.board[nr][nc].piece;
+          while (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
+            const cellPiece = cells[nr][nc].piece;
             if (cellPiece === '#') break;
             if (cellPiece && dist[nr][nc] !== 0) break;
             if (dist[nr][nc] === Infinity) {
@@ -857,36 +1245,38 @@ class ChessVisualizer {
 
     let reachable = 0;
     let traversable = 0;
-    for (let r = 0; r < this.rows; r++) {
-      for (let c = 0; c < this.cols; c++) {
-        if (this.board[r][c].piece === '#') continue;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (cells[r][c].piece === '#') continue;
         traversable++;
         if (dist[r][c] !== Infinity) reachable++;
       }
     }
 
-    this.knightDistances = dist;
-    this.knightParents = parents;
-    this.bfsReachableCount = reachable;
-    this.bfsTraversableCount = traversable;
+    boardObj.knightDistances = dist;
+    boardObj.knightParents = parents;
+    boardObj.bfsReachableCount = reachable;
+    boardObj.bfsTraversableCount = traversable;
     return dist;
   }
 
   computeKnightBFS(sr, sc) {
-    this.bfsPieceType = 'N';
-    this.knightStart = { r: sr, c: sc };
-    this.bfsStarts = [{ r: sr, c: sc }];
-    return this.computePieceBFS(this.bfsStarts, 'N');
+    const b = this.activeBoard;
+    b.bfsPieceType = 'N';
+    b.knightStart = { r: sr, c: sc };
+    b.bfsStarts = [{ r: sr, c: sc }];
+    return this.computePieceBFS(b.bfsStarts, 'N', b);
   }
 
   traceKnightPath(tr, tc) {
-    if (!this.knightParents || !this.knightDistances) return;
-    if (this.board[tr]?.[tc]?.piece === '#') {
+    const b = this.activeBoard;
+    if (!b.knightParents || !b.knightDistances) return;
+    if (b.board[tr]?.[tc]?.piece === '#') {
       window.App?.showToast('Blocked wall (#) is unreachable!', 'error');
       return;
     }
-    if (this.knightDistances[tr][tc] === Infinity) {
-      window.App?.showToast(`Square ${this.getSquareNotation(tr, tc)} is unreachable!`, 'error');
+    if (b.knightDistances[tr][tc] === Infinity) {
+      window.App?.showToast(`Square ${this.getSquareNotation(tr, tc, b)} is unreachable!`, 'error');
       return;
     }
 
@@ -894,14 +1284,13 @@ class ChessVisualizer {
     let curr = [tr, tc];
     while (curr) {
       path.push(curr);
-      curr = this.knightParents[curr[0]][curr[1]];
+      curr = b.knightParents[curr[0]][curr[1]];
     }
     path.reverse();
-    this.knightTarget = { r: tr, c: tc };
-    this.knightPath = path;
+    b.knightTarget = { r: tr, c: tc };
+    b.knightPath = path;
     const moves = path.length - 1;
-    const pieceLabel = this.getPieceName(this.bfsPieceType || 'N');
-    window.App?.showToast(`${pieceLabel} shortest path: ${moves} move${moves !== 1 ? 's' : ''}`, 'info');
+    window.App?.showToast(`${this.getPieceName(b.bfsPieceType || 'N')} shortest path: ${moves} move${moves !== 1 ? 's' : ''}`, 'info');
   }
 
   // ==========================================
@@ -909,14 +1298,15 @@ class ChessVisualizer {
   // ==========================================
 
   solveNQueens() {
-    if (this.rows !== this.cols) {
+    const b = this.activeBoard;
+    if (b.rows !== b.cols) {
       this.pushUndo();
-      window.App?.showToast('N-Queens requires a square board (N × N). Setting to 8×8', 'info');
+      window.App?.showToast('N-Queens requires a square board (N × N). Setting active board to 8×8', 'info');
       this.initBoard(8, 8);
       this.fitBoard();
     }
 
-    const N = this.rows;
+    const N = b.rows;
     if (N > 14) {
       window.App?.showToast('N-Queens solver limited to N ≤ 14 for instant responsiveness', 'error');
       return;
@@ -934,7 +1324,7 @@ class ChessVisualizer {
         return;
       }
       for (let col = 0; col < N; col++) {
-        if (this.board[row][col].piece === '#') continue;
+        if (b.board[row][col].piece === '#') continue;
         if (!cols.has(col) && !diag1.has(row - col) && !diag2.has(row + col)) {
           cols.add(col);
           diag1.add(row - col);
@@ -951,9 +1341,9 @@ class ChessVisualizer {
 
     backtrack(0);
 
-    this.clearSolverOverlays();
-    this.nqueensSolutions = solutions;
-    this.nqueensIndex = 0;
+    this.clearSolverOverlays(true, b);
+    b.nqueensSolutions = solutions;
+    b.nqueensIndex = 0;
 
     const browser = document.getElementById('nqueens-browser');
     const counter = document.getElementById('nqueens-solution-counter');
@@ -963,7 +1353,7 @@ class ChessVisualizer {
       this.pushUndo();
       if (counter) counter.textContent = `1 / ${solutions.length}`;
       this.applyNQueensSolution(0);
-      window.App?.showToast(`Found ${solutions.length} solution${solutions.length !== 1 ? 's' : ''} for ${N}-Queens!`, 'success');
+      window.App?.showToast(`${b.name}: found ${solutions.length} solution${solutions.length !== 1 ? 's' : ''} for ${N}-Queens!`, 'success');
     } else {
       if (counter) counter.textContent = '0 solutions';
       window.App?.showToast(`No valid ${N}-Queens placement avoids the current walls (#).`, 'info');
@@ -972,23 +1362,22 @@ class ChessVisualizer {
   }
 
   applyNQueensSolution(idx) {
-    if (!this.nqueensSolutions || this.nqueensSolutions.length === 0) return;
-    this.nqueensIndex = (idx + this.nqueensSolutions.length) % this.nqueensSolutions.length;
-    const sol = this.nqueensSolutions[this.nqueensIndex];
+    const b = this.activeBoard;
+    if (!b.nqueensSolutions || b.nqueensSolutions.length === 0) return;
+    b.nqueensIndex = (idx + b.nqueensSolutions.length) % b.nqueensSolutions.length;
+    const sol = b.nqueensSolutions[b.nqueensIndex];
 
-    for (let r = 0; r < this.rows; r++) {
-      for (let c = 0; c < this.cols; c++) {
-        if (this.board[r][c].piece !== '#') {
-          this.board[r][c].piece = null;
-        }
+    for (let r = 0; r < b.rows; r++) {
+      for (let c = 0; c < b.cols; c++) {
+        if (b.board[r][c].piece !== '#') b.board[r][c].piece = null;
       }
     }
-    for (let r = 0; r < this.rows; r++) {
-      this.board[r][sol[r]].piece = 'Q';
+    for (let r = 0; r < b.rows; r++) {
+      b.board[r][sol[r]].piece = 'Q';
     }
 
     const counter = document.getElementById('nqueens-solution-counter');
-    if (counter) counter.textContent = `${this.nqueensIndex + 1} / ${this.nqueensSolutions.length}`;
+    if (counter) counter.textContent = `${b.nqueensIndex + 1} / ${b.nqueensSolutions.length}`;
     this.render();
     this.saveState();
   }
@@ -1000,9 +1389,7 @@ class ChessVisualizer {
   toggleNQueensPlay() {
     const playBtn = document.getElementById('btn-nq-play');
     if (this.nqueensTimer) {
-      clearInterval(this.nqueensTimer);
-      this.nqueensTimer = null;
-      if (playBtn) playBtn.textContent = 'Auto';
+      this.stopNQueensTimer();
     } else {
       if (playBtn) playBtn.textContent = 'Pause';
       this.nqueensTimer = setInterval(() => this.navNQueens(1), 700);
@@ -1010,22 +1397,25 @@ class ChessVisualizer {
   }
 
   /**
-   * Places the maximum number of mutually non-attacking Rooks on the N x M board
+   * Places the maximum number of mutually non-attacking Rooks on the active N x M board
    * respecting '#' walls via Row-Segment x Col-Segment Bipartite Matching (Kuhn's algorithm).
    */
   solveNRooks() {
     this.pushUndo();
-    this.clearSolverOverlays();
+    const b = this.activeBoard;
+    this.clearSolverOverlays(true, b);
 
-    const rowSeg = Array.from({ length: this.rows }, () => Array(this.cols).fill(-1));
-    const colSeg = Array.from({ length: this.rows }, () => Array(this.cols).fill(-1));
+    const rows = b.rows;
+    const cols = b.cols;
+    const rowSeg = Array.from({ length: rows }, () => Array(cols).fill(-1));
+    const colSeg = Array.from({ length: rows }, () => Array(cols).fill(-1));
     let numRowSegs = 0;
     let numColSegs = 0;
 
-    for (let r = 0; r < this.rows; r++) {
+    for (let r = 0; r < rows; r++) {
       let inSeg = false;
-      for (let c = 0; c < this.cols; c++) {
-        if (this.board[r][c].piece === '#') {
+      for (let c = 0; c < cols; c++) {
+        if (b.board[r][c].piece === '#') {
           inSeg = false;
         } else {
           if (!inSeg) {
@@ -1037,10 +1427,10 @@ class ChessVisualizer {
       }
     }
 
-    for (let c = 0; c < this.cols; c++) {
+    for (let c = 0; c < cols; c++) {
       let inSeg = false;
-      for (let r = 0; r < this.rows; r++) {
-        if (this.board[r][c].piece === '#') {
+      for (let r = 0; r < rows; r++) {
+        if (b.board[r][c].piece === '#') {
           inSeg = false;
         } else {
           if (!inSeg) {
@@ -1052,18 +1442,17 @@ class ChessVisualizer {
       }
     }
 
-    // Build bipartite adjacency list: rowSeg -> [{ colSeg, r, c }]
     const adj = Array.from({ length: numRowSegs }, () => []);
-    for (let r = 0; r < this.rows; r++) {
-      for (let c = 0; c < this.cols; c++) {
-        if (this.board[r][c].piece !== '#') {
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (b.board[r][c].piece !== '#') {
           adj[rowSeg[r][c]].push({ cs: colSeg[r][c], r, c });
-          this.board[r][c].piece = null;
+          b.board[r][c].piece = null;
         }
       }
     }
 
-    const matchCol = Array(numColSegs).fill(null); // stores { rs, r, c }
+    const matchCol = Array(numColSegs).fill(null);
     const dfs = (u, visited) => {
       for (const edge of adj[u]) {
         if (visited[edge.cs]) continue;
@@ -1077,21 +1466,20 @@ class ChessVisualizer {
     };
 
     for (let u = 0; u < numRowSegs; u++) {
-      const visited = Array(numColSegs).fill(false);
-      dfs(u, visited);
+      dfs(u, Array(numColSegs).fill(false));
     }
 
     let placed = 0;
     for (const m of matchCol) {
       if (m) {
-        this.board[m.r][m.c].piece = 'R';
+        b.board[m.r][m.c].piece = 'R';
         placed++;
       }
     }
 
     this.render();
     this.saveState();
-    window.App?.showToast(`Placed ${placed} max non-attacking Rook${placed !== 1 ? 's' : ''} (bipartite matching)`, 'success');
+    window.App?.showToast(`${b.name}: placed ${placed} max non-attacking Rook${placed !== 1 ? 's' : ''}`, 'success');
   }
 
   // ==========================================
@@ -1099,19 +1487,17 @@ class ChessVisualizer {
   // ==========================================
 
   solveKnightsTour() {
-    this.clearSolverOverlays();
-    const N = this.rows;
-    const M = this.cols;
+    const b = this.activeBoard;
+    this.clearSolverOverlays(true, b);
+    const N = b.rows;
+    const M = b.cols;
     const visited = Array.from({ length: N }, () => Array(M).fill(0));
     let traversable = 0;
 
     for (let r = 0; r < N; r++) {
       for (let c = 0; c < M; c++) {
-        if (this.board[r][c].piece === '#') {
-          visited[r][c] = -1;
-        } else {
-          traversable++;
-        }
+        if (b.board[r][c].piece === '#') visited[r][c] = -1;
+        else traversable++;
       }
     }
 
@@ -1121,15 +1507,15 @@ class ChessVisualizer {
     }
 
     let start = null;
-    if (this.selectedSquare && visited[this.selectedSquare.r]?.[this.selectedSquare.c] === 0) {
-      start = this.selectedSquare;
+    if (b.selectedSquare && visited[b.selectedSquare.r]?.[b.selectedSquare.c] === 0) {
+      start = b.selectedSquare;
     } else {
       for (let r = 0; r < N && !start; r++) {
         for (let c = 0; c < M && !start; c++) {
-          if (this.board[r][c].piece === 'N') start = { r, c };
+          if (b.board[r][c].piece === 'N') start = { r, c };
         }
       }
-      if (!start) start = this.findFirstNonWallSquare();
+      if (!start) start = this.findFirstNonWallSquare(b);
     }
 
     const getDegree = (r, c) => {
@@ -1172,7 +1558,7 @@ class ChessVisualizer {
       curC = nextC;
     }
 
-    this.knightsTourMoves = moves;
+    b.knightsTourMoves = moves;
     const reached = moves.length;
     let isClosed = false;
     if (reached === traversable && reached > 1) {
@@ -1183,7 +1569,7 @@ class ChessVisualizer {
 
     const tourType = reached === traversable ? (isClosed ? 'Closed Tour!' : 'Open Tour') : 'Partial';
     window.App?.showToast(
-      `Knight's Tour (${tourType}): visited ${reached} / ${traversable} squares`,
+      `${b.name} Knight's Tour (${tourType}): ${reached} / ${traversable} squares`,
       reached === traversable ? 'success' : 'info'
     );
     this.render();
@@ -1195,81 +1581,86 @@ class ChessVisualizer {
 
   generateRandomWalls() {
     this.pushUndo();
-    this.clearSolverOverlays();
+    const b = this.activeBoard;
+    this.clearSolverOverlays(true, b);
     let placed = 0;
-    for (let r = 0; r < this.rows; r++) {
-      for (let c = 0; c < this.cols; c++) {
-        if (this.board[r][c].piece === '#') {
-          this.board[r][c].piece = null;
-        }
-        if (!this.board[r][c].piece && Math.random() < 0.2) {
-          this.board[r][c].piece = '#';
+    for (let r = 0; r < b.rows; r++) {
+      for (let c = 0; c < b.cols; c++) {
+        if (b.board[r][c].piece === '#') b.board[r][c].piece = null;
+        if (!b.board[r][c].piece && Math.random() < 0.2) {
+          b.board[r][c].piece = '#';
           placed++;
         }
       }
     }
     this.render();
     this.saveState();
-    window.App?.showToast(`Generated ${placed} wall obstacle${placed !== 1 ? 's' : ''} (#)`, 'info');
+    window.App?.showToast(`${b.name}: generated ${placed} wall obstacle${placed !== 1 ? 's' : ''} (#)`, 'info');
   }
 
   rotateBoard90() {
     this.pushUndo();
-    this.clearSolverOverlays();
-    const newRows = this.cols;
-    const newCols = this.rows;
-    const next = Array.from({ length: newRows }, (_, nr) =>
+    const b = this.activeBoard;
+    this.clearSolverOverlays(true, b);
+    const newRows = b.cols;
+    const newCols = b.rows;
+    b.board = Array.from({ length: newRows }, (_, nr) =>
       Array.from({ length: newCols }, (_, nc) => ({
-        piece: this.board[this.rows - 1 - nc][nr].piece,
-        color: this.board[this.rows - 1 - nc][nr].color || 'w'
+        piece: b.board[b.rows - 1 - nc][nr].piece,
+        color: b.board[b.rows - 1 - nc][nr].color || 'w'
       }))
     );
-    this.rows = newRows;
-    this.cols = newCols;
-    this.board = next;
-    this.selectedSquare = null;
-    this.syncDimensionInputs();
+    b.rows = newRows;
+    b.cols = newCols;
+    b.selectedSquare = null;
+    this.syncBoardSelector();
     this.fitBoard();
     this.saveState();
-    window.App?.showToast('Rotated board 90° clockwise', 'info');
+    window.App?.showToast(`Rotated ${b.name} 90° clockwise`, 'info');
   }
 
   flipBoardH() {
     this.pushUndo();
-    this.clearSolverOverlays();
-    for (let r = 0; r < this.rows; r++) {
-      this.board[r].reverse();
-    }
-    this.selectedSquare = null;
+    const b = this.activeBoard;
+    this.clearSolverOverlays(true, b);
+    for (let r = 0; r < b.rows; r++) b.board[r].reverse();
+    b.selectedSquare = null;
     this.render();
     this.saveState();
-    window.App?.showToast('Flipped board horizontally', 'info');
+    window.App?.showToast(`Flipped ${b.name} horizontally`, 'info');
   }
 
   copyPieceCoords() {
-    let gridStr = `${this.rows} ${this.cols}\n`;
-    const pieceLines = [];
-    for (let r = 0; r < this.rows; r++) {
-      let rowStr = '';
-      for (let c = 0; c < this.cols; c++) {
-        const p = this.board[r][c].piece;
-        rowStr += p || '.';
-        if (p && p !== '#') {
-          pieceLines.push(`${p} at ${this.getSquareNotation(r, c)} (r:${r}, c:${c})`);
+    const sections = this.boards.map((b, idx) => {
+      let out = this.boards.length > 1 ? `# ${b.name}\n${b.rows} ${b.cols}\n` : `${b.rows} ${b.cols}\n`;
+      const pieces = [];
+      for (let r = 0; r < b.rows; r++) {
+        let rowStr = '';
+        for (let c = 0; c < b.cols; c++) {
+          const p = b.board[r][c].piece;
+          rowStr += p || '.';
+          if (p && p !== '#') {
+            pieces.push(`${p} at ${this.getSquareNotation(r, c, b)} (r:${r}, c:${c})`);
+          }
         }
+        out += `${rowStr}\n`;
       }
-      gridStr += `${rowStr}\n`;
-    }
-    if (pieceLines.length > 0) {
-      gridStr += `\n# Pieces:\n${pieceLines.join('\n')}`;
-    }
-    navigator.clipboard?.writeText(gridStr.trimEnd()).then(() => {
-      window.App?.showToast(`Copied ${this.rows}×${this.cols} board matrix & pieces!`, 'success');
+      if (pieces.length > 0) out += `# Pieces:\n${pieces.join('\n')}\n`;
+      return out.trimEnd();
+    });
+
+    navigator.clipboard?.writeText(sections.join('\n\n')).then(() => {
+      window.App?.showToast(
+        this.boards.length > 1
+          ? `Copied ${this.boards.length} chessboards to clipboard!`
+          : `Copied ${this.rows}×${this.cols} board matrix & pieces!`,
+        'success'
+      );
     });
   }
 
   // ==========================================
-  // RENDERING (Clean Tournament Chessboard)
+  // RENDERING (Multi-Board Infinite Canvas)
   // ==========================================
 
   render() {
@@ -1277,63 +1668,87 @@ class ChessVisualizer {
     const rect = this.container.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
 
-    this.computeAttackMap();
+    for (const b of this.boards) {
+      this.computeAttackMap(b);
+    }
+    this.syncDimensionInputs();
     this.updateInspector();
     this.updateStatusPill();
 
     this.ctx.clearRect(0, 0, rect.width, rect.height);
-
     const sz = this.squareSize * this.zoom;
     const isOneIdx = window.App?.isOneIndexed;
-    const atkCounts = this.attackStats?.counts;
-    const conflicts = this.attackStats?.conflicts;
 
     this.ctx.save();
     this.ctx.translate(this.panX, this.panY);
 
-    // 1. Draw Checkerboard Squares, Obstacles (#), Overlays, Pieces & BFS Distances
-    for (let r = 0; r < this.rows; r++) {
-      for (let c = 0; c < this.cols; c++) {
+    for (let bi = 0; bi < this.boards.length; bi++) {
+      this.renderSingleBoard(this.boards[bi], bi, sz, isOneIdx);
+    }
+
+    this.ctx.restore();
+  }
+
+  renderSingleBoard(b, boardIdx, sz, isOneIdx) {
+    const isActive = boardIdx === this.activeBoardIndex;
+    const atkCounts = b.attackStats?.counts;
+    const conflicts = b.attackStats?.conflicts;
+    const boardW = b.cols * sz;
+    const boardH = b.rows * sz;
+
+    this.ctx.save();
+    this.ctx.translate(b.offsetX * this.zoom, b.offsetY * this.zoom);
+
+    // 0. Draggable Board Header Tab
+    this.renderBoardHeaderPill(b, isActive, boardW);
+
+    // 1. Draw Squares, Walls (#), Overlays, Pieces & BFS Distances
+    for (let r = 0; r < b.rows; r++) {
+      for (let c = 0; c < b.cols; c++) {
         const x = c * sz;
         const y = r * sz;
         const isLight = (r + c) % 2 === 0;
-        const piece = this.board[r][c].piece;
+        const piece = b.board[r][c].piece;
 
         if (piece === '#') {
-          // Wall / Blocked square
           this.ctx.fillStyle = '#1e293b';
           this.ctx.fillRect(x, y, sz, sz);
-          this.ctx.strokeStyle = 'rgba(148, 163, 184, 0.25)';
+          this.ctx.strokeStyle = 'rgba(148, 163, 184, 0.28)';
           this.ctx.lineWidth = 1;
           this.ctx.strokeRect(x, y, sz, sz);
 
-          // Subtle diagonal hatch inside wall
           this.ctx.save();
           this.ctx.strokeStyle = 'rgba(148, 163, 184, 0.28)';
           this.ctx.lineWidth = 1.5;
           this.ctx.beginPath();
-          this.ctx.moveTo(x + sz * 0.22, y + sz * 0.78);
-          this.ctx.lineTo(x + sz * 0.78, y + sz * 0.22);
+          this.ctx.moveTo(x + sz * 0.2, y + sz * 0.8);
+          this.ctx.lineTo(x + sz * 0.8, y + sz * 0.2);
           this.ctx.stroke();
+          if (sz >= 24) {
+            this.ctx.fillStyle = 'rgba(148, 163, 184, 0.72)';
+            this.ctx.font = `700 ${Math.max(10, sz * 0.34)}px "JetBrains Mono", Menlo, monospace`;
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            this.ctx.fillText('#', x + sz / 2, y + sz / 2);
+          }
           this.ctx.restore();
           continue;
         }
 
-        let sqColor = isLight ? '#eeeed2' : '#769656';
+        let sqColor = b.kind === 'grid' ? '#141414' : (isLight ? '#eeeed2' : '#769656');
 
-        if (this.knightDistances) {
-          const d = this.knightDistances[r][c];
-          if (d === 0) {
-            sqColor = '#10b981';
-          } else if (d !== Infinity) {
+        if (b.knightDistances) {
+          const d = b.knightDistances[r][c];
+          if (d === 0) sqColor = '#10b981';
+          else if (d !== Infinity) {
             const alpha = Math.max(0.22, 0.78 - d * 0.08);
-            sqColor = `rgba(14, 165, 233, ${alpha})`;
+            sqColor = `rgba(21, 93, 252, ${alpha})`;
           }
-        } else if (this.activeOverlay === 'manhattan' && this.selectedSquare) {
-          const d = Math.abs(r - this.selectedSquare.r) + Math.abs(c - this.selectedSquare.c);
+        } else if (this.activeOverlay === 'manhattan' && b.selectedSquare) {
+          const d = Math.abs(r - b.selectedSquare.r) + Math.abs(c - b.selectedSquare.c);
           sqColor = `rgba(99, 102, 241, ${0.15 + (d % 4) * 0.2})`;
-        } else if (this.activeOverlay === 'chebyshev' && this.selectedSquare) {
-          const d = Math.max(Math.abs(r - this.selectedSquare.r), Math.abs(c - this.selectedSquare.c));
+        } else if (this.activeOverlay === 'chebyshev' && b.selectedSquare) {
+          const d = Math.max(Math.abs(r - b.selectedSquare.r), Math.abs(c - b.selectedSquare.c));
           sqColor = `rgba(245, 158, 11, ${0.15 + (d % 3) * 0.25})`;
         } else if (this.activeOverlay === 'bipartite') {
           sqColor = isLight ? '#93c5fd' : '#fca5a5';
@@ -1342,8 +1757,7 @@ class ChessVisualizer {
         this.ctx.fillStyle = sqColor;
         this.ctx.fillRect(x, y, sz, sz);
 
-        // Attack & Safe overlay shading (stacks cleanly even atop board colors)
-        if (!this.knightDistances && this.activeOverlay === 'attack' && atkCounts) {
+        if (!b.knightDistances && this.activeOverlay === 'attack' && atkCounts) {
           const atk = atkCounts[r][c];
           if (atk > 0) {
             const alpha = Math.min(0.62, 0.22 + (atk - 1) * 0.14);
@@ -1355,12 +1769,11 @@ class ChessVisualizer {
           }
         }
 
-        this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.08)';
+        this.ctx.strokeStyle = b.kind === 'grid' ? '#262626' : 'rgba(0, 0, 0, 0.08)';
         this.ctx.lineWidth = 1;
         this.ctx.strokeRect(x, y, sz, sz);
 
-        // Piece conflict outline (piece under attack by another piece)
-        if (conflicts?.has(`${r},${c}`) && (this.activeOverlay === 'attack' || this.nqueensSolutions.length > 0)) {
+        if (conflicts?.has(`${r},${c}`) && (this.activeOverlay === 'attack' || b.nqueensSolutions.length > 0)) {
           this.ctx.save();
           this.ctx.strokeStyle = '#ef4444';
           this.ctx.lineWidth = 2.5;
@@ -1368,8 +1781,7 @@ class ChessVisualizer {
           this.ctx.restore();
         }
 
-        // Attack multiplicity badge in corner when attacked >= 2 times (or safe dot)
-        if (!this.knightDistances && this.activeOverlay === 'attack' && atkCounts) {
+        if (!b.knightDistances && this.activeOverlay === 'attack' && atkCounts) {
           const atk = atkCounts[r][c];
           if (atk >= 2 && sz >= 28) {
             this.ctx.fillStyle = 'rgba(159, 18, 57, 0.9)';
@@ -1385,25 +1797,38 @@ class ChessVisualizer {
           }
         }
 
-        // Draw Piece Symbol
-        if (piece && !this.knightDistances) {
-          this.renderPieceGlyph(piece, x + sz / 2, y + sz / 2, sz);
+        if (piece && !b.knightDistances) {
+          this.renderPieceGlyph(piece, x + sz / 2, y + sz / 2, sz, b.kind === 'grid');
+        } else if (b.kind === 'grid' && !piece && !b.knightDistances) {
+          const val = b.board[r][c].val !== undefined ? b.board[r][c].val : 0;
+          const valStr = String(val);
+          let vFont = Math.max(9, sz * 0.36);
+          this.ctx.font = `600 ${vFont}px "JetBrains Mono", Menlo, monospace`;
+          const maxW = sz * 0.84;
+          const mw = this.ctx.measureText(valStr).width;
+          if (mw > maxW && maxW > 0) {
+            vFont = Math.max(7, vFont * (maxW / mw));
+            this.ctx.font = `600 ${vFont}px "JetBrains Mono", Menlo, monospace`;
+          }
+          this.ctx.fillStyle = '#e5e7eb';
+          this.ctx.textAlign = 'center';
+          this.ctx.textBaseline = 'middle';
+          this.ctx.fillText(valStr, x + sz / 2, y + sz / 2);
         }
 
-        // Distance numbers (BFS or Manhattan/Chebyshev when square selected)
-        if (this.knightDistances) {
-          const d = this.knightDistances[r][c];
+        if (b.knightDistances) {
+          const d = b.knightDistances[r][c];
           const distFontSize = Math.max(11, Math.min(22, sz * 0.36));
           this.ctx.font = `700 ${distFontSize}px "JetBrains Mono", Menlo, monospace`;
-          this.ctx.fillStyle = d === 0 ? '#ffffff' : '#0f172a';
+          this.ctx.fillStyle = d === 0 ? '#ffffff' : (b.kind === 'grid' ? '#f5f5f5' : '#0f172a');
           this.ctx.textAlign = 'center';
           this.ctx.textBaseline = 'middle';
           this.ctx.fillText(d !== Infinity ? d : '∞', x + sz / 2, y + sz / 2);
-        } else if ((this.activeOverlay === 'manhattan' || this.activeOverlay === 'chebyshev') && this.selectedSquare && !piece && sz >= 24) {
+        } else if ((this.activeOverlay === 'manhattan' || this.activeOverlay === 'chebyshev') && b.selectedSquare && !piece && sz >= 24) {
           const d =
             this.activeOverlay === 'manhattan'
-              ? Math.abs(r - this.selectedSquare.r) + Math.abs(c - this.selectedSquare.c)
-              : Math.max(Math.abs(r - this.selectedSquare.r), Math.abs(c - this.selectedSquare.c));
+              ? Math.abs(r - b.selectedSquare.r) + Math.abs(c - b.selectedSquare.c)
+              : Math.max(Math.abs(r - b.selectedSquare.r), Math.abs(c - b.selectedSquare.c));
           this.ctx.font = `600 ${Math.max(9, Math.min(14, sz * 0.26))}px "JetBrains Mono", Menlo, monospace`;
           this.ctx.fillStyle = '#0f172a';
           this.ctx.textAlign = 'center';
@@ -1414,24 +1839,24 @@ class ChessVisualizer {
     }
 
     // 2. Knight's Tour Lines & Step Pills
-    if (this.knightsTourMoves && this.knightsTourMoves.length > 1) {
+    if (b.knightsTourMoves && b.knightsTourMoves.length > 1) {
       this.ctx.save();
       this.ctx.strokeStyle = '#ef4444';
       this.ctx.lineWidth = 2.5;
       this.ctx.beginPath();
-      const first = this.knightsTourMoves[0];
+      const first = b.knightsTourMoves[0];
       this.ctx.moveTo(first[1] * sz + sz / 2, first[0] * sz + sz / 2);
-      for (let i = 1; i < this.knightsTourMoves.length; i++) {
-        const m = this.knightsTourMoves[i];
+      for (let i = 1; i < b.knightsTourMoves.length; i++) {
+        const m = b.knightsTourMoves[i];
         this.ctx.lineTo(m[1] * sz + sz / 2, m[0] * sz + sz / 2);
       }
       this.ctx.stroke();
 
-      for (let i = 0; i < this.knightsTourMoves.length; i++) {
-        const m = this.knightsTourMoves[i];
+      for (let i = 0; i < b.knightsTourMoves.length; i++) {
+        const m = b.knightsTourMoves[i];
         const cx = m[1] * sz + sz / 2;
         const cy = m[0] * sz + sz / 2;
-        this.ctx.fillStyle = i === 0 ? '#10b981' : i === this.knightsTourMoves.length - 1 ? '#ef4444' : '#1e293b';
+        this.ctx.fillStyle = i === 0 ? '#10b981' : i === b.knightsTourMoves.length - 1 ? '#ef4444' : '#1e293b';
         this.ctx.beginPath();
         this.ctx.arc(cx, cy, Math.max(7, sz * 0.22), 0, Math.PI * 2);
         this.ctx.fill();
@@ -1446,48 +1871,79 @@ class ChessVisualizer {
     }
 
     // 3. BFS Shortest Path Trace
-    if (this.knightPath && this.knightPath.length > 1) {
+    if (b.knightPath && b.knightPath.length > 1) {
       this.ctx.save();
       this.ctx.strokeStyle = '#2563eb';
       this.ctx.lineWidth = 3.5;
       this.ctx.lineCap = 'round';
       this.ctx.lineJoin = 'round';
       this.ctx.beginPath();
-      const first = this.knightPath[0];
+      const first = b.knightPath[0];
       this.ctx.moveTo(first[1] * sz + sz / 2, first[0] * sz + sz / 2);
-      for (let i = 1; i < this.knightPath.length; i++) {
-        const p = this.knightPath[i];
+      for (let i = 1; i < b.knightPath.length; i++) {
+        const p = b.knightPath[i];
         this.ctx.lineTo(p[1] * sz + sz / 2, p[0] * sz + sz / 2);
       }
       this.ctx.stroke();
       this.ctx.restore();
     }
 
-    // 4. Selected & Hovered Square Borders
-    if (this.selectedSquare) {
+    // 4. Selected & Hovered Square Highlights
+    if (b.selectedSquare) {
       this.ctx.strokeStyle = '#f59e0b';
       this.ctx.lineWidth = 2.5;
       this.ctx.strokeRect(
-        this.selectedSquare.c * sz + 1.5,
-        this.selectedSquare.r * sz + 1.5,
+        b.selectedSquare.c * sz + 1.5,
+        b.selectedSquare.r * sz + 1.5,
         sz - 3,
         sz - 3
       );
     }
 
-    if (this.hoverSquare) {
-      this.ctx.strokeStyle = '#38bdf8';
+    if (this.hoverInfo && this.hoverInfo.boardIdx === boardIdx) {
+      this.ctx.strokeStyle = '#3b82f6';
       this.ctx.lineWidth = 2.5;
-      this.ctx.strokeRect(this.hoverSquare.c * sz, this.hoverSquare.r * sz, sz, sz);
+      this.ctx.strokeRect(this.hoverInfo.c * sz, this.hoverInfo.r * sz, sz, sz);
     }
 
-    // 5. Outer Board Border & Rank/File Headers
-    this.renderBoardHeaders(sz, isOneIdx);
+    // 5. Headers & Active Board Frame
+    this.renderBoardHeaders(b, sz, isOneIdx, isActive, boardW, boardH);
 
     this.ctx.restore();
   }
 
-  renderPieceGlyph(p, cx, cy, sz) {
+  isDarkTheme() {
+    return true;
+  }
+
+  renderBoardHeaderPill(b, isActive, boardW) {
+    this.ctx.save();
+    const label = `${b.name} (${b.rows}×${b.cols})`;
+    this.ctx.font = '600 11px "Inter", system-ui, sans-serif';
+    const textW = this.ctx.measureText(label).width;
+    const pillW = Math.max(96, textW + 20);
+    const pillH = 22;
+    const pillY = -44;
+
+    this.ctx.fillStyle = isActive ? '#155dfc' : '#0a0a0a';
+    this.ctx.strokeStyle = isActive ? '#3b82f6' : '#262626';
+    this.ctx.lineWidth = 1;
+    this.ctx.beginPath();
+    this.ctx.roundRect?.(0, pillY, pillW, pillH, 6);
+    if (!this.ctx.roundRect) {
+      this.ctx.rect(0, pillY, pillW, pillH);
+    }
+    this.ctx.fill();
+    this.ctx.stroke();
+
+    this.ctx.fillStyle = isActive ? '#ffffff' : '#a1a1aa';
+    this.ctx.textAlign = 'left';
+    this.ctx.textBaseline = 'middle';
+    this.ctx.fillText(label, 10, pillY + pillH / 2);
+    this.ctx.restore();
+  }
+
+  renderPieceGlyph(p, cx, cy, sz, onDarkGrid = false) {
     const glyphs = {
       N: '♞',
       Q: '♛',
@@ -1501,61 +1957,70 @@ class ChessVisualizer {
     this.ctx.font = `${pieceFontSize}px sans-serif`;
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
-    this.ctx.fillStyle = '#18181b';
-    this.ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
+    this.ctx.fillStyle = onDarkGrid ? '#f5f5f5' : '#18181b';
+    this.ctx.shadowColor = onDarkGrid ? 'rgba(0, 0, 0, 0.8)' : 'rgba(255, 255, 255, 0.8)';
     this.ctx.shadowBlur = 3;
     this.ctx.fillText(symbol, cx, cy);
     this.ctx.shadowBlur = 0;
   }
 
-  renderBoardHeaders(sz, isOneIdx) {
+  renderBoardHeaders(b, sz, isOneIdx, isActive, boardW, boardH) {
     const headerFontSize = Math.max(10, Math.min(13, sz * 0.26));
     this.ctx.font = `600 ${headerFontSize}px "JetBrains Mono", Menlo, monospace`;
-    this.ctx.fillStyle = '#94a3b8';
+    this.ctx.fillStyle = isActive ? '#d4d4d8' : '#71717a';
 
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'bottom';
-    for (let c = 0; c < this.cols; c++) {
+    for (let c = 0; c < b.cols; c++) {
       let label = isOneIdx ? c + 1 : c;
-      if (this.rows <= 26 && this.cols <= 26 && !isOneIdx) {
+      if (b.kind !== 'grid' && b.rows <= 26 && b.cols <= 26 && !isOneIdx) {
         label = String.fromCharCode(97 + c);
       }
-      this.ctx.fillText(label, c * sz + sz / 2, -8);
+      this.ctx.fillText(label, c * sz + sz / 2, -6);
     }
 
     this.ctx.textAlign = 'right';
     this.ctx.textBaseline = 'middle';
-    for (let r = 0; r < this.rows; r++) {
+    for (let r = 0; r < b.rows; r++) {
       let label = isOneIdx ? r + 1 : r;
-      if (this.rows <= 26 && this.cols <= 26 && !isOneIdx) {
-        label = this.rows - r;
+      if (b.kind !== 'grid' && b.rows <= 26 && b.cols <= 26 && !isOneIdx) {
+        label = b.rows - r;
       }
-      this.ctx.fillText(label, -10, r * sz + sz / 2);
+      this.ctx.fillText(label, -9, r * sz + sz / 2);
     }
 
-    this.ctx.strokeStyle = '#475569';
-    this.ctx.lineWidth = 2;
-    this.ctx.strokeRect(0, 0, this.cols * sz, this.rows * sz);
+    this.ctx.strokeStyle = isActive && this.boards.length > 1 ? '#155dfc' : '#262626';
+    this.ctx.lineWidth = isActive && this.boards.length > 1 ? 2.5 : 2;
+    this.ctx.strokeRect(0, 0, boardW, boardH);
   }
 
   cancelAllActivities() {
-    const hadActivity = !!(
-      this.knightStart ||
-      this.knightDistances ||
-      this.knightTarget ||
-      this.knightPath ||
-      this.knightsTourMoves ||
-      this.nqueensSolutions?.length ||
+    const hadActivity =
+      this.boards.some(
+        b =>
+          b.knightStart ||
+          b.knightDistances ||
+          b.knightTarget ||
+          b.knightPath ||
+          b.knightsTourMoves ||
+          b.nqueensSolutions?.length ||
+          b.selectedSquare
+      ) ||
       this.nqueensTimer ||
-      this.selectedSquare ||
       this.activeOverlay !== 'none' ||
       this.isPanning ||
-      this.isPainting
-    );
-    this.clearSolverOverlays();
-    this.selectedSquare = null;
+      this.isPainting ||
+      this.isDraggingBoard;
+
+    this.stopNQueensTimer();
+    for (const b of this.boards) {
+      this.clearSolverOverlays(false, b);
+      b.selectedSquare = null;
+    }
     this.isPanning = false;
     this.isPainting = false;
+    this.isDraggingBoard = false;
+    this.dragBoardIndex = -1;
     this.activeOverlay = 'none';
     const sel = document.getElementById('chess-overlay-select');
     if (sel) sel.value = 'none';
@@ -1574,11 +2039,20 @@ class ChessVisualizer {
   saveState() {
     try {
       const state = {
-        rows: this.rows,
-        cols: this.cols,
-        board: this.board,
+        nextBoardNum: this.nextBoardNum,
+        activeBoardIndex: this.activeBoardIndex,
         activePiece: this.activePiece,
-        activeOverlay: this.activeOverlay
+        activeOverlay: this.activeOverlay,
+        boards: this.boards.map(b => ({
+          id: b.id,
+          kind: b.kind || 'chess',
+          name: b.name,
+          rows: b.rows,
+          cols: b.cols,
+          offsetX: b.offsetX,
+          offsetY: b.offsetY,
+          board: b.board
+        }))
       };
       localStorage.setItem('tracematrix_chess_state', JSON.stringify(state));
     } catch (e) {
@@ -1591,11 +2065,36 @@ class ChessVisualizer {
       const raw = localStorage.getItem('tracematrix_chess_state');
       if (!raw) return false;
       const state = JSON.parse(raw);
-      if (!state || !Array.isArray(state.board) || !state.rows || !state.cols) return false;
+      if (!state) return false;
 
-      this.rows = state.rows;
-      this.cols = state.cols;
-      this.board = state.board;
+      if (Array.isArray(state.boards) && state.boards.length > 0) {
+        this.boards = state.boards.map((sb, idx) => {
+          const entry = this.createBoardEntry(
+            sb.rows || 8,
+            sb.cols || 8,
+            sb.offsetX || 0,
+            sb.offsetY || 0,
+            sb.name || `Board ${idx + 1}`,
+            sb.kind || 'chess'
+          );
+          if (sb.id) entry.id = sb.id;
+          if (Array.isArray(sb.board)) entry.board = sb.board;
+          return entry;
+        });
+        this.nextBoardNum = Math.max(
+          state.nextBoardNum || 1,
+          ...this.boards.map(b => (b.id || 0) + 1)
+        );
+        this.activeBoardIndex = Math.max(0, Math.min(this.boards.length - 1, state.activeBoardIndex || 0));
+      } else if (Array.isArray(state.board) && state.rows && state.cols) {
+        // Migrate legacy single-board save cleanly
+        const entry = this.createBoardEntry(state.rows, state.cols, 0, 0, 'Board 1');
+        entry.board = state.board;
+        this.boards = [entry];
+        this.activeBoardIndex = 0;
+      } else {
+        return false;
+      }
 
       if (state.activePiece) {
         this.activePiece = state.activePiece;
@@ -1611,7 +2110,7 @@ class ChessVisualizer {
         this.syncOverlayButtons();
       }
 
-      this.syncDimensionInputs();
+      this.syncBoardSelector();
       return true;
     } catch (e) {
       console.warn('Failed to load chess state from localStorage', e);

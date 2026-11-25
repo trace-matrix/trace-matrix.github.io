@@ -2085,11 +2085,11 @@ class PointVisualizer {
 
     const subDiv = Math.round(step / power) === 2 ? 4 : 5;
     const subStep = step / subDiv;
-    const isDark = document.querySelector('meta[name="color-scheme"]')?.content !== 'light';
+    const isDark = true;
 
     if (subStep * this.scale >= 9) {
       this.ctx.save();
-      this.ctx.strokeStyle = isDark ? 'rgba(148, 163, 184, 0.08)' : 'rgba(100, 116, 139, 0.08)';
+      this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
       this.ctx.lineWidth = 1;
       this.ctx.beginPath();
       for (let x = Math.floor(minX / subStep) * subStep; x <= Math.ceil(maxX / subStep) * subStep + subStep * 0.5; x += subStep) {
@@ -2151,9 +2151,9 @@ class PointVisualizer {
       const labelY = Math.max(12, Math.min(height - 24, axisY + 6));
       const valText = Number(x.toFixed(4)).toString();
       const tw = this.ctx.measureText(valText).width;
-      this.ctx.fillStyle = isDark ? 'rgba(10, 14, 23, 0.85)' : 'rgba(255, 255, 255, 0.85)';
+      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
       this.ctx.fillRect(sx - tw / 2 - 2, labelY - 1, tw + 4, 14);
-      this.ctx.fillStyle = isDark ? '#94a3b8' : '#475569';
+      this.ctx.fillStyle = '#8b8f98';
       this.ctx.textAlign = 'center';
       this.ctx.textBaseline = 'top';
       this.ctx.fillText(valText, sx, labelY);
@@ -2165,17 +2165,17 @@ class PointVisualizer {
       const labelX = Math.max(38, Math.min(width - 10, axisX - 8));
       const valText = Number(y.toFixed(4)).toString();
       const tw = this.ctx.measureText(valText).width;
-      this.ctx.fillStyle = isDark ? 'rgba(10, 14, 23, 0.85)' : 'rgba(255, 255, 255, 0.85)';
+      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
       this.ctx.fillRect(labelX - tw - 2, sy - 7, tw + 4, 14);
-      this.ctx.fillStyle = isDark ? '#94a3b8' : '#475569';
+      this.ctx.fillStyle = '#8b8f98';
       this.ctx.textAlign = 'right';
       this.ctx.textBaseline = 'middle';
       this.ctx.fillText(valText, labelX, sy);
     }
     if (axisX >= 0 && axisX <= width && axisY >= 0 && axisY <= height) {
-      this.ctx.fillStyle = isDark ? 'rgba(10, 14, 23, 0.85)' : 'rgba(255, 255, 255, 0.85)';
+      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
       this.ctx.fillRect(axisX - 16, axisY + 4, 14, 14);
-      this.ctx.fillStyle = isDark ? '#94a3b8' : '#475569';
+      this.ctx.fillStyle = '#8b8f98';
       this.ctx.textAlign = 'right';
       this.ctx.textBaseline = 'top';
       this.ctx.fillText('0', axisX - 5, axisY + 5);

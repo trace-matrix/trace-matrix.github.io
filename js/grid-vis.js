@@ -17,8 +17,6 @@ class GridVisualizer {
     this.ctx = this.canvas.getContext('2d');
     this.container = document.getElementById('grid-canvas-container');
 
-    this.rows = 10;
-    this.cols = 10;
     this.cellSize = 52;
 
     // Viewport transform
@@ -26,17 +24,22 @@ class GridVisualizer {
     this.panY = 40;
     this.zoom = 1.0;
 
+    // Multi-item collection on the same canvas (Grids & Chessboards)
+    this.nextItemNum = 1;
+    this.items = [];
+    this.activeItemIndex = 0;
+
     // Interaction state
     this.isDragging = false;
+    this.isDraggingItem = false;
+    this.dragItemIndex = -1;
     this.isPanning = false;
     this.lastMouseX = 0;
     this.lastMouseY = 0;
-    this.hoverCell = null;
-    this.selectedCell = { row: 0, col: 0 };
+    this.hoverInfo = null; // { itemIdx, row, col }
+    this.needsInitialFit = false;
 
     // Selection & Coloring state
-    this.submatrix = null;
-    this.selectedCells = null; // non-rectangular cell list (e.g. diag / antidiag)
     this.isSelectingSubmatrix = false;
     this.subStart = null;
     this.selectionMode = 'submatrix'; // 'submatrix' | 'cell' | 'subarray' | 'row' | 'col' | 'diag' | 'antidiag'
@@ -56,26 +59,68 @@ class GridVisualizer {
     this.showSubscripts = false;
     this.show1DIndex = false;
 
-    this.startCells = []; // [{ r, c }]
-    this.endCell = null;  // { r, c } | null
-    this.algoOverlay = null; // { type, values, path, colors, summary }
-    this.windowPos = -1;
-
     // Undo / Redo History
     this.undoStack = [];
     this.redoStack = [];
 
-    // Grid data & state restoration
-    this.grid = [];
     const loaded = this.loadState();
     if (!loaded) {
-      this.initGrid(this.rows, this.cols, 0);
+      this.items = [this.createItemEntry(10, 10, 0, 0, 'Grid 1', 'grid')];
+      this.activeItemIndex = 0;
+      this.syncItemSelector();
     }
 
     this.initEventListeners();
     this.syncControlStatesUI();
     this.resizeCanvas();
     this.fitGrid();
+  }
+
+  // ==========================================
+  // ACTIVE ITEM ACCESSORS (MULTI GRID & CHESS)
+  // ==========================================
+
+  get activeItem() {
+    if (!this.items.length) {
+      this.items = [this.createItemEntry(10, 10, 0, 0, 'Grid 1', 'grid')];
+      this.activeItemIndex = 0;
+    }
+    if (this.activeItemIndex < 0 || this.activeItemIndex >= this.items.length) {
+      this.activeItemIndex = 0;
+    }
+    return this.items[this.activeItemIndex];
+  }
+
+  get rows() { return this.activeItem.rows; }
+  set rows(v) { this.activeItem.rows = v; }
+  get cols() { return this.activeItem.cols; }
+  set cols(v) { this.activeItem.cols = v; }
+  get grid() { return this.activeItem.grid; }
+  set grid(v) { this.activeItem.grid = v; }
+  get submatrix() { return this.activeItem.submatrix; }
+  set submatrix(v) { this.activeItem.submatrix = v; }
+  get selectedCells() { return this.activeItem.selectedCells; }
+  set selectedCells(v) { this.activeItem.selectedCells = v; }
+  get selectedCell() { return this.activeItem.selectedCell; }
+  set selectedCell(v) { this.activeItem.selectedCell = v; }
+  get startCells() { return this.activeItem.startCells; }
+  set startCells(v) { this.activeItem.startCells = v; }
+  get endCell() { return this.activeItem.endCell; }
+  set endCell(v) { this.activeItem.endCell = v; }
+  get algoOverlay() { return this.activeItem.algoOverlay; }
+  set algoOverlay(v) { this.activeItem.algoOverlay = v; }
+  get windowPos() { return this.activeItem.windowPos; }
+  set windowPos(v) { this.activeItem.windowPos = v; }
+
+  get hoverCell() {
+    if (this.hoverInfo && this.hoverInfo.itemIdx === this.activeItemIndex) {
+      return { row: this.hoverInfo.row, col: this.hoverInfo.col };
+    }
+    return null;
+  }
+
+  set hoverCell(cell) {
+    this.hoverInfo = cell ? { itemIdx: this.activeItemIndex, row: cell.row, col: cell.col } : null;
   }
 
   // ==========================================
@@ -86,37 +131,163 @@ class GridVisualizer {
     return { val, type: 'empty', source, color: null, isWall: val === '#' };
   }
 
+  createItemEntry(rows = 10, cols = 10, offsetX = 0, offsetY = 0, name = null, kind = 'grid') {
+    const num = this.nextItemNum++;
+    const resolvedKind = kind === 'chess' ? 'chess' : 'grid';
+    const r = Math.max(1, Math.min(100, rows));
+    const c = Math.max(1, Math.min(100, cols));
+    return {
+      id: num,
+      kind: resolvedKind,
+      name: name || (resolvedKind === 'chess' ? `Chess ${num}` : `Grid ${num}`),
+      rows: r,
+      cols: c,
+      offsetX,
+      offsetY,
+      grid: Array.from({ length: r }, () =>
+        Array.from({ length: c }, () => this.createEmptyCell(0, 'empty'))
+      ),
+      submatrix: null,
+      selectedCells: null,
+      selectedCell: { row: 0, col: 0 },
+      startCells: [],
+      endCell: null,
+      algoOverlay: null,
+      windowPos: -1
+    };
+  }
+
+  cloneGridCells(cells) {
+    return cells.map(row => row.map(cell => ({ ...cell })));
+  }
+
+  addItem(cloneActive = false, kind = 'grid') {
+    this.pushUndo();
+    const ref = this.activeItem;
+    const targetKind = cloneActive ? (ref.kind || 'grid') : (kind === 'chess' ? 'chess' : 'grid');
+    const rows = cloneActive
+      ? ref.rows
+      : (targetKind === 'chess' ? 8 : (parseInt(document.getElementById('grid-rows')?.value, 10) || 10));
+    const cols = cloneActive
+      ? ref.cols
+      : (targetKind === 'chess' ? 8 : (parseInt(document.getElementById('grid-cols')?.value, 10) || 10));
+
+    let maxRight = 0;
+    for (const item of this.items) {
+      maxRight = Math.max(maxRight, item.offsetX + item.cols * this.cellSize);
+    }
+    const offsetX = maxRight + 96;
+    const offsetY = ref.offsetY || 0;
+
+    const entry = this.createItemEntry(rows, cols, offsetX, offsetY, null, targetKind);
+    if (cloneActive) {
+      entry.grid = this.cloneGridCells(ref.grid);
+      entry.name = `${ref.name} Copy`;
+    }
+
+    this.items.push(entry);
+    this.setActiveItem(this.items.length - 1, false);
+    this.fitGrid();
+    this.saveState();
+    window.App?.showToast(
+      cloneActive ? `Cloned ${ref.name} onto canvas` : `Added ${entry.name} (${entry.rows}×${entry.cols}) on canvas`,
+      'success'
+    );
+  }
+
+  removeActiveItem() {
+    if (this.items.length <= 1) {
+      window.App?.showToast('At least one grid or chessboard must remain (use Clear to reset)', 'info');
+      return;
+    }
+    this.pushUndo();
+    const removedName = this.activeItem.name;
+    this.items.splice(this.activeItemIndex, 1);
+    this.activeItemIndex = Math.max(0, Math.min(this.items.length - 1, this.activeItemIndex));
+    this.hoverInfo = null;
+    this.syncItemSelector();
+    this.fitGrid();
+    this.saveState();
+    window.App?.showToast(`Removed ${removedName}`, 'info');
+  }
+
+  setActiveItem(idx, shouldRender = true) {
+    if (idx < 0 || idx >= this.items.length) return;
+    this.activeItemIndex = idx;
+    this.syncItemSelector();
+    this.updateSubmatrixStats();
+    if (shouldRender) {
+      this.render();
+      this.saveState();
+    }
+  }
+
+  syncItemSelector() {
+    this.updateDimBadge();
+    const tabsBar = document.getElementById('grid-boards-tabs');
+    if (tabsBar) {
+      tabsBar.innerHTML = '';
+      this.items.forEach((item, i) => {
+        const pill = document.createElement('button');
+        pill.type = 'button';
+        pill.className = `board-tab-pill${i === this.activeItemIndex ? ' active' : ''}`;
+        pill.dataset.gridIdx = String(i);
+        pill.textContent = item.name;
+        pill.title = `${item.name} (${item.rows} × ${item.cols})`;
+        tabsBar.appendChild(pill);
+      });
+
+      const addGridBtn = document.createElement('button');
+      addGridBtn.type = 'button';
+      addGridBtn.className = 'board-add-pill';
+      addGridBtn.id = 'btn-grid-add-grid';
+      addGridBtn.title = 'Add Another Grid on Canvas';
+      addGridBtn.textContent = '+ Grid';
+      tabsBar.appendChild(addGridBtn);
+
+      const addChessBtn = document.createElement('button');
+      addChessBtn.type = 'button';
+      addChessBtn.className = 'board-add-pill';
+      addChessBtn.id = 'btn-grid-add-chess';
+      addChessBtn.title = 'Add a Chessboard on Canvas';
+      addChessBtn.textContent = '+ Chess';
+      tabsBar.appendChild(addChessBtn);
+    }
+
+    const delBtn = document.getElementById('btn-grid-del-board');
+    if (delBtn) {
+      delBtn.disabled = this.items.length <= 1;
+    }
+  }
+
   initGrid(rows, cols, defaultValue = 0) {
-    this.rows = Math.max(1, Math.min(100, rows));
-    this.cols = Math.max(1, Math.min(100, cols));
-    this.grid = [];
-    for (let r = 0; r < this.rows; r++) {
+    const item = this.activeItem;
+    item.rows = Math.max(1, Math.min(100, rows));
+    item.cols = Math.max(1, Math.min(100, cols));
+    item.grid = [];
+    for (let r = 0; r < item.rows; r++) {
       const row = [];
-      for (let c = 0; c < this.cols; c++) {
+      for (let c = 0; c < item.cols; c++) {
         row.push(this.createEmptyCell(defaultValue, 'empty'));
       }
-      this.grid.push(row);
+      item.grid.push(row);
     }
-    this.submatrix = null;
-    this.selectedCells = null;
-    this.startCells = [];
-    this.endCell = null;
-    this.algoOverlay = null;
-    this.windowPos = -1;
+    item.submatrix = null;
+    item.selectedCells = null;
+    item.startCells = [];
+    item.endCell = null;
+    item.algoOverlay = null;
+    item.windowPos = -1;
     this.hideAlgoResult();
-    this.updateDimBadge();
+    this.syncItemSelector();
     this.updateSubmatrixStats();
   }
 
   captureSnapshot() {
     return JSON.stringify({
-      rows: this.rows,
-      cols: this.cols,
-      grid: this.grid,
-      startCells: this.startCells,
-      endCell: this.endCell,
-      submatrix: this.submatrix,
-      selectedCells: this.selectedCells
+      nextItemNum: this.nextItemNum,
+      activeItemIndex: this.activeItemIndex,
+      items: this.items
     });
   }
 
@@ -132,16 +303,22 @@ class GridVisualizer {
 
   restoreSnapshot(snapStr) {
     const snap = JSON.parse(snapStr);
-    this.rows = snap.rows;
-    this.cols = snap.cols;
-    this.grid = snap.grid;
-    this.startCells = snap.startCells || [];
-    this.endCell = snap.endCell || null;
-    this.submatrix = snap.submatrix || null;
-    this.selectedCells = snap.selectedCells || null;
-    this.algoOverlay = null;
+    if (Array.isArray(snap.items)) {
+      this.items = snap.items;
+      this.nextItemNum = Math.max(snap.nextItemNum || 1, ...this.items.map(it => (it.id || 0) + 1));
+      this.activeItemIndex = Math.max(0, Math.min(this.items.length - 1, snap.activeItemIndex || 0));
+    } else {
+      this.rows = snap.rows;
+      this.cols = snap.cols;
+      this.grid = snap.grid;
+      this.startCells = snap.startCells || [];
+      this.endCell = snap.endCell || null;
+      this.submatrix = snap.submatrix || null;
+      this.selectedCells = snap.selectedCells || null;
+      this.algoOverlay = null;
+    }
     this.hideAlgoResult();
-    this.updateDimBadge();
+    this.syncItemSelector();
     this.updateSubmatrixStats();
     this.render();
     this.saveState();
@@ -170,36 +347,72 @@ class GridVisualizer {
   }
 
   updateDimBadge() {
+    const item = this.activeItem;
     const badge = document.getElementById('grid-dim-text');
-    if (badge) badge.textContent = `${this.rows} × ${this.cols}`;
+    if (badge) {
+      const prefix = item.kind === 'chess' ? 'C' : 'G';
+      badge.textContent = this.items.length > 1
+        ? `${prefix}${this.activeItemIndex + 1} · ${item.rows} × ${item.cols}`
+        : `${item.rows} × ${item.cols}`;
+    }
     const rInput = document.getElementById('grid-rows');
     const cInput = document.getElementById('grid-cols');
-    if (rInput) rInput.value = this.rows;
-    if (cInput) cInput.value = this.cols;
+    if (rInput) rInput.value = item.rows;
+    if (cInput) cInput.value = item.cols;
   }
 
   resizeCanvas() {
     if (!this.container || !this.canvas) return;
     const rect = this.container.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) {
+      this.needsInitialFit = true;
+      return;
+    }
     const dpr = window.devicePixelRatio || 1;
     this.canvas.width = rect.width * dpr;
     this.canvas.height = rect.height * dpr;
     this.ctx.resetTransform?.();
     this.ctx.scale(dpr, dpr);
+    if (this.needsInitialFit) {
+      this.needsInitialFit = false;
+      this.fitGrid();
+      return;
+    }
     this.render();
+  }
+
+  getAllItemsBounds() {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const item of this.items) {
+      minX = Math.min(minX, item.offsetX);
+      minY = Math.min(minY, item.offsetY - 52);
+      maxX = Math.max(maxX, item.offsetX + item.cols * this.cellSize);
+      maxY = Math.max(maxY, item.offsetY + item.rows * this.cellSize);
+    }
+    return { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY };
   }
 
   fitGrid() {
     if (!this.container) return;
     const rect = this.container.getBoundingClientRect();
-    const totalW = this.cols * this.cellSize;
-    const totalH = this.rows * this.cellSize;
-    const pad = 60;
-    const scaleX = (rect.width - pad * 2) / totalW;
-    const scaleY = (rect.height - pad * 2) / totalH;
-    this.zoom = Math.max(0.2, Math.min(2.0, Math.min(scaleX, scaleY)));
-    this.panX = Math.round((rect.width - totalW * this.zoom) / 2);
-    this.panY = Math.round((rect.height - totalH * this.zoom) / 2);
+    if (rect.width === 0 || rect.height === 0) {
+      this.needsInitialFit = true;
+      return;
+    }
+    this.needsInitialFit = false;
+    const bounds = this.getAllItemsBounds();
+    const padX = 60;
+    const padY = 52;
+    const scaleX = (rect.width - padX * 2) / Math.max(1, bounds.width);
+    const scaleY = (rect.height - padY * 2) / Math.max(1, bounds.height);
+    this.zoom = Math.max(0.2, Math.min(2.0, Math.min(scaleX, scaleY) || 1.0));
+    const centerWorldX = bounds.minX + bounds.width / 2;
+    const centerWorldY = bounds.minY + bounds.height / 2;
+    this.panX = Math.round(rect.width / 2 - centerWorldX * this.zoom);
+    this.panY = Math.round(rect.height / 2 - centerWorldY * this.zoom);
     this.updateStatusPill();
     this.render();
   }
@@ -207,10 +420,11 @@ class GridVisualizer {
   resetView() {
     this.zoom = 1.0;
     const rect = this.container.getBoundingClientRect();
-    const totalW = this.cols * this.cellSize;
-    const totalH = this.rows * this.cellSize;
-    this.panX = Math.round((rect.width - totalW) / 2);
-    this.panY = Math.round((rect.height - totalH) / 2);
+    const item = this.activeItem;
+    const centerWorldX = item.offsetX + (item.cols * this.cellSize) / 2;
+    const centerWorldY = item.offsetY + (item.rows * this.cellSize) / 2;
+    this.panX = Math.round(rect.width / 2 - centerWorldX);
+    this.panY = Math.round(rect.height / 2 - centerWorldY);
     this.updateStatusPill();
     this.render();
   }
@@ -221,6 +435,29 @@ class GridVisualizer {
 
   initEventListeners() {
     window.addEventListener('resize', () => this.resizeCanvas());
+
+    // Multi-item controls (Grids & Chessboards on same canvas)
+    document.getElementById('grid-boards-tabs')?.addEventListener('click', (e) => {
+      const addGridBtn = e.target.closest('#btn-grid-add-grid');
+      if (addGridBtn) {
+        this.addItem(false, 'grid');
+        return;
+      }
+      const addChessBtn = e.target.closest('#btn-grid-add-chess');
+      if (addChessBtn) {
+        this.addItem(false, 'chess');
+        return;
+      }
+      const tabBtn = e.target.closest('[data-grid-idx]');
+      if (tabBtn) {
+        const idx = parseInt(tabBtn.dataset.gridIdx, 10);
+        if (!Number.isNaN(idx)) {
+          this.setActiveItem(idx, true);
+        }
+      }
+    });
+    document.getElementById('btn-grid-dup-board')?.addEventListener('click', () => this.addItem(true));
+    document.getElementById('btn-grid-del-board')?.addEventListener('click', () => this.removeActiveItem());
 
     // Resize button
     document.getElementById('btn-resize-grid')?.addEventListener('click', () => {
@@ -449,6 +686,7 @@ class GridVisualizer {
     const hadActivity = !!(
       inlineActive ||
       this.isSelectingSubmatrix ||
+      this.isDraggingItem ||
       this.isPanning ||
       this.headerDrag ||
       this.submatrix ||
@@ -459,6 +697,8 @@ class GridVisualizer {
     );
 
     this.isPanning = false;
+    this.isDraggingItem = false;
+    this.dragItemIndex = -1;
     this.isSelectingSubmatrix = false;
     this.headerDrag = null;
     this.wallPaintValue = null;
@@ -511,26 +751,54 @@ class GridVisualizer {
     this.render();
   }
 
+  hitTestCanvas(sx, sy) {
+    const worldX = (sx - this.panX) / this.zoom;
+    const worldY = (sy - this.panY) / this.zoom;
+
+    for (let ii = this.items.length - 1; ii >= 0; ii--) {
+      const item = this.items[ii];
+      const lx = worldX - item.offsetX;
+      const ly = worldY - item.offsetY;
+      const boardW = item.cols * this.cellSize;
+      const boardH = item.rows * this.cellSize;
+
+      const headerW = Math.max(130 / this.zoom, Math.min(boardW, 240 / this.zoom));
+      if (lx >= -2 && lx <= headerW && ly >= -44 / this.zoom && ly <= -18 / this.zoom) {
+        return { type: 'header', itemIdx: ii };
+      }
+
+      if (lx >= 0 && lx < boardW && ly >= 0 && ly < boardH) {
+        const col = Math.floor(lx / this.cellSize);
+        const row = Math.floor(ly / this.cellSize);
+        if (row >= 0 && row < item.rows && col >= 0 && col < item.cols) {
+          return { type: 'cell', itemIdx: ii, row, col };
+        }
+      }
+    }
+    return null;
+  }
+
   screenToGrid(sx, sy) {
-    const cs = this.cellSize * this.zoom;
-    const col = Math.floor((sx - this.panX) / cs);
-    const row = Math.floor((sy - this.panY) / cs);
-    if (row >= 0 && row < this.rows && col >= 0 && col < this.cols) {
-      return { row, col };
+    const hit = this.hitTestCanvas(sx, sy);
+    if (hit && hit.type === 'cell') {
+      return { row: hit.row, col: hit.col, itemIdx: hit.itemIdx };
     }
     return null;
   }
 
   screenToHeader(sx, sy) {
     const cs = this.cellSize * this.zoom;
-    const lx = sx - this.panX;
-    const ly = sy - this.panY;
     const headerBand = Math.max(28, cs * 0.85);
-    if (lx >= 0 && lx < this.cols * cs && ly >= -headerBand && ly < 0) {
-      return { type: 'col', index: Math.floor(lx / cs) };
-    }
-    if (ly >= 0 && ly < this.rows * cs && lx >= -headerBand && lx < 0) {
-      return { type: 'row', index: Math.floor(ly / cs) };
+    for (let ii = this.items.length - 1; ii >= 0; ii--) {
+      const item = this.items[ii];
+      const lx = sx - (this.panX + item.offsetX * this.zoom);
+      const ly = sy - (this.panY + item.offsetY * this.zoom);
+      if (lx >= 0 && lx < item.cols * cs && ly >= -headerBand && ly < 0) {
+        return { type: 'col', index: Math.floor(lx / cs), itemIdx: ii };
+      }
+      if (ly >= 0 && ly < item.rows * cs && lx >= -headerBand && lx < 0) {
+        return { type: 'row', index: Math.floor(ly / cs), itemIdx: ii };
+      }
     }
     return null;
   }
@@ -688,9 +956,23 @@ class GridVisualizer {
     const rect = this.container.getBoundingClientRect();
     const sx = e.clientX - rect.left;
     const sy = e.clientY - rect.top;
-    const cell = this.screenToGrid(sx, sy);
+    const hit = this.hitTestCanvas(sx, sy);
 
-    if (cell) {
+    if (hit && hit.type === 'header') {
+      this.setActiveItem(hit.itemIdx, false);
+      this.pushUndo();
+      this.isDraggingItem = true;
+      this.dragItemIndex = hit.itemIdx;
+      this.lastMouseX = e.clientX;
+      this.lastMouseY = e.clientY;
+      this.removeInlineEditor();
+      this.render();
+      return;
+    }
+
+    if (hit && hit.type === 'cell') {
+      this.setActiveItem(hit.itemIdx, false);
+      const cell = { row: hit.row, col: hit.col };
       if (this.gridTool === 'wall') {
         this.pushUndo();
         const curWall = this.isCellWall(cell.row, cell.col);
@@ -727,6 +1009,9 @@ class GridVisualizer {
 
     const hdr = this.screenToHeader(sx, sy);
     if (hdr) {
+      if (typeof hdr.itemIdx === 'number') {
+        this.setActiveItem(hdr.itemIdx, false);
+      }
       this.selectedCells = null;
       this.headerDrag = { type: hdr.type, startIndex: hdr.index };
       if (hdr.type === 'row') {
@@ -750,6 +1035,17 @@ class GridVisualizer {
     const sx = e.clientX - rect.left;
     const sy = e.clientY - rect.top;
 
+    if (this.isDraggingItem && this.dragItemIndex >= 0 && this.items[this.dragItemIndex]) {
+      const dx = (e.clientX - this.lastMouseX) / this.zoom;
+      const dy = (e.clientY - this.lastMouseY) / this.zoom;
+      this.items[this.dragItemIndex].offsetX += dx;
+      this.items[this.dragItemIndex].offsetY += dy;
+      this.lastMouseX = e.clientX;
+      this.lastMouseY = e.clientY;
+      this.render();
+      return;
+    }
+
     if (this.isPanning) {
       const dx = e.clientX - this.lastMouseX;
       const dy = e.clientY - this.lastMouseY;
@@ -762,11 +1058,12 @@ class GridVisualizer {
     }
 
     const cs = this.cellSize * this.zoom;
+    const active = this.activeItem;
 
     if (this.headerDrag) {
       this.selectedCells = null;
       if (this.headerDrag.type === 'row') {
-        const idx = Math.max(0, Math.min(this.rows - 1, Math.floor((sy - this.panY) / cs)));
+        const idx = Math.max(0, Math.min(this.rows - 1, Math.floor((sy - (this.panY + active.offsetY * this.zoom)) / cs)));
         this.submatrix = {
           r1: Math.min(this.headerDrag.startIndex, idx),
           c1: 0,
@@ -774,7 +1071,7 @@ class GridVisualizer {
           c2: this.cols - 1
         };
       } else {
-        const idx = Math.max(0, Math.min(this.cols - 1, Math.floor((sx - this.panX) / cs)));
+        const idx = Math.max(0, Math.min(this.cols - 1, Math.floor((sx - (this.panX + active.offsetX * this.zoom)) / cs)));
         this.submatrix = {
           r1: 0,
           c1: Math.min(this.headerDrag.startIndex, idx),
@@ -787,23 +1084,29 @@ class GridVisualizer {
       return;
     }
 
-    const cell = this.screenToGrid(sx, sy);
-    this.hoverCell = cell;
-    this.hoverHeader = !cell ? this.screenToHeader(sx, sy) : null;
+    const hit = this.hitTestCanvas(sx, sy);
+    this.hoverInfo = hit && hit.type === 'cell' ? { itemIdx: hit.itemIdx, row: hit.row, col: hit.col } : null;
+    this.hoverHeader = !this.hoverInfo ? this.screenToHeader(sx, sy) : null;
     if (this.canvas) {
-      this.canvas.style.cursor = this.hoverHeader ? 'pointer' : (this.gridTool !== 'select' ? 'crosshair' : 'default');
+      this.canvas.style.cursor = hit?.type === 'header'
+        ? 'grab'
+        : (this.hoverHeader ? 'pointer' : (this.gridTool !== 'select' ? 'crosshair' : 'default'));
     }
     this.updateStatusPill();
 
-    if (this.isDragging && this.gridTool === 'wall' && this.wallPaintValue !== null && cell) {
-      this.setCellWall(cell.row, cell.col, this.wallPaintValue);
+    const activeHitCell = hit && hit.type === 'cell' && hit.itemIdx === this.activeItemIndex
+      ? { row: hit.row, col: hit.col }
+      : null;
+
+    if (this.isDragging && this.gridTool === 'wall' && this.wallPaintValue !== null && activeHitCell) {
+      this.setCellWall(activeHitCell.row, activeHitCell.col, this.wallPaintValue);
       this.updateSubmatrixStats();
       this.render();
       return;
     }
 
-    if (this.isSelectingSubmatrix && this.subStart && cell) {
-      this.applyDragSelection(this.subStart, cell);
+    if (this.isSelectingSubmatrix && this.subStart && activeHitCell) {
+      this.applyDragSelection(this.subStart, activeHitCell);
       this.updateSubmatrixStats();
       this.render();
     } else {
@@ -812,6 +1115,11 @@ class GridVisualizer {
   }
 
   handleMouseUp() {
+    if (this.isDraggingItem) {
+      this.isDraggingItem = false;
+      this.dragItemIndex = -1;
+      this.saveState();
+    }
     if (this.isDragging && this.gridTool === 'wall') {
       this.saveState();
     }
@@ -835,7 +1143,9 @@ class GridVisualizer {
     const sy = e.clientY - rect.top;
     const cell = this.screenToGrid(sx, sy);
     if (!cell) return;
-
+    if (typeof cell.itemIdx === 'number') {
+      this.setActiveItem(cell.itemIdx, false);
+    }
     this.editCellInline(cell.row, cell.col);
   }
 
@@ -847,10 +1157,11 @@ class GridVisualizer {
   editCellInline(row, col) {
     this.removeInlineEditor();
 
-    const cell = this.grid[row][col];
+    const item = this.activeItem;
+    const cell = item.grid[row][col];
     const cs = this.cellSize * this.zoom;
-    const cellX = this.panX + col * cs;
-    const cellY = this.panY + row * cs;
+    const cellX = this.panX + item.offsetX * this.zoom + col * cs;
+    const cellY = this.panY + item.offsetY * this.zoom + row * cs;
 
     const input = document.createElement('input');
     input.type = 'text';
@@ -1693,16 +2004,18 @@ class GridVisualizer {
 
     if (statusZoom) statusZoom.textContent = `Zoom: ${Math.round(this.zoom * 100)}%`;
 
-    if (this.hoverCell) {
-      const { row, col } = this.hoverCell;
-      const cell = this.grid[row][col];
+    if (this.hoverInfo && this.items[this.hoverInfo.itemIdx]) {
+      const { itemIdx, row, col } = this.hoverInfo;
+      const item = this.items[itemIdx];
+      const cell = item.grid[row][col];
       const isOneIdx = window.App?.isOneIndexed;
       const rDisp = isOneIdx ? row + 1 : row;
       const cDisp = isOneIdx ? col + 1 : col;
-      if (statusCell) statusCell.textContent = `Cell: (${rDisp}, ${cDisp}) [1D: ${row * this.cols + col}]`;
+      const prefix = this.items.length > 1 ? `${item.name} · ` : '';
+      if (statusCell) statusCell.textContent = `${prefix}(${rDisp}, ${cDisp}) [1D: ${row * item.cols + col}]`;
       if (statusVal) statusVal.textContent = `Val: ${cell.isWall ? '# (Wall)' : cell.val}`;
     } else {
-      if (statusCell) statusCell.textContent = `Cell: -`;
+      if (statusCell) statusCell.textContent = this.items.length > 1 ? `${this.activeItem.name} | Cell: -` : `Cell: -`;
       if (statusVal) statusVal.textContent = `Val: -`;
     }
   }
@@ -2043,17 +2356,62 @@ class GridVisualizer {
   render() {
     if (!this.ctx || !this.container) return;
     const rect = this.container.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
     const width = rect.width;
     const height = rect.height;
 
     this.ctx.clearRect(0, 0, width, height);
 
+    const isOneIdx = window.App?.isOneIndexed;
+    const cs = this.cellSize * this.zoom;
+
+    this.ctx.save();
+    this.ctx.translate(this.panX, this.panY);
+
+    for (let ii = 0; ii < this.items.length; ii++) {
+      this.renderSingleItem(this.items[ii], ii, cs, isOneIdx);
+    }
+
+    this.ctx.restore();
+  }
+
+  renderItemHeaderPill(item, isActive) {
+    this.ctx.save();
+    const label = `${item.name} (${item.rows}×${item.cols})`;
+    this.ctx.font = '600 11px "Inter", system-ui, sans-serif';
+    const textW = this.ctx.measureText(label).width;
+    const pillW = Math.max(96, textW + 20);
+    const pillH = 22;
+    const pillY = -44;
+
+    this.ctx.fillStyle = isActive ? '#155dfc' : '#0a0a0a';
+    this.ctx.strokeStyle = isActive ? '#3b82f6' : '#262626';
+    this.ctx.lineWidth = 1;
+    this.ctx.beginPath();
+    this.ctx.roundRect?.(0, pillY, pillW, pillH, 6);
+    if (!this.ctx.roundRect) {
+      this.ctx.rect(0, pillY, pillW, pillH);
+    }
+    this.ctx.fill();
+    this.ctx.stroke();
+
+    this.ctx.fillStyle = isActive ? '#ffffff' : '#a1a1aa';
+    this.ctx.textAlign = 'left';
+    this.ctx.textBaseline = 'middle';
+    this.ctx.fillText(label, 10, pillY + pillH / 2);
+    this.ctx.restore();
+  }
+
+  renderSingleItem(item, itemIdx, cs, isOneIdx) {
+    const isActive = itemIdx === this.activeItemIndex;
+    const isChess = item.kind === 'chess';
+
     let minVal = Infinity, maxVal = -Infinity;
     if (this.showHeatmap) {
-      for (let r = 0; r < this.rows; r++) {
-        for (let c = 0; c < this.cols; c++) {
-          if (this.isCellWall(r, c)) continue;
-          const v = this.grid[r][c].val;
+      for (let r = 0; r < item.rows; r++) {
+        for (let c = 0; c < item.cols; c++) {
+          if (item.grid[r][c]?.isWall || item.grid[r][c]?.val === '#') continue;
+          const v = item.grid[r][c]?.val;
           if (typeof v === 'number') {
             minVal = Math.min(minVal, v);
             maxVal = Math.max(maxVal, v);
@@ -2062,45 +2420,49 @@ class GridVisualizer {
       }
     }
 
-    const P = this.showPrefixOverlay ? this.computePrefixSums() : null;
-    const D = this.showDiffOverlay ? this.computeDiffMatrix() : null;
-    const isOneIdx = window.App?.isOneIndexed;
-    const cs = this.cellSize * this.zoom;
-
-    const startSet = new Set(this.startCells.map(p => `${p.r},${p.c}`));
-    const pathSet = new Set((this.algoOverlay?.path || []).map(p => `${p.r},${p.c}`));
+    const P = isActive && this.showPrefixOverlay ? this.computePrefixSums() : null;
+    const D = isActive && this.showDiffOverlay ? this.computeDiffMatrix() : null;
+    const startSet = new Set((item.startCells || []).map(p => `${p.r},${p.c}`));
+    const pathSet = new Set((item.algoOverlay?.path || []).map(p => `${p.r},${p.c}`));
+    const chessGlyphs = { N: '♞', Q: '♛', R: '♜', B: '♝', K: '♚', P: '♟' };
 
     this.ctx.save();
-    this.ctx.translate(this.panX, this.panY);
+    this.ctx.translate(item.offsetX * this.zoom, item.offsetY * this.zoom);
 
-    // 1. Draw Clean Grid Cells
-    for (let r = 0; r < this.rows; r++) {
-      for (let c = 0; c < this.cols; c++) {
+    // 0. Draggable Header Pill
+    this.renderItemHeaderPill(item, isActive);
+
+    // 1. Draw Cells (Obsidian Grid or Chessboard)
+    for (let r = 0; r < item.rows; r++) {
+      for (let c = 0; c < item.cols; c++) {
         const x = c * cs;
         const y = r * cs;
-        const cell = this.grid[r][c];
-        const isWall = this.isCellWall(r, c);
+        const cell = item.grid[r][c];
+        const isWall = !!(cell.isWall || cell.val === '#');
+        const isLight = (r + c) % 2 === 0;
         const key = `${r},${c}`;
         const isStart = startSet.has(key);
-        const isEnd = this.endCell && this.endCell.r === r && this.endCell.c === c;
+        const isEnd = item.endCell && item.endCell.r === r && item.endCell.c === c;
         const isOnPath = pathSet.has(key);
 
-        let fillColor = isWall ? '#0f172a' : '#161e2e';
-        let textColor = isWall ? '#64748b' : '#f1f5f9';
+        let fillColor = isWall
+          ? '#0a0a0a'
+          : (isChess ? (isLight ? '#eeeed2' : '#769656') : '#141414');
+        let textColor = isWall
+          ? '#64748b'
+          : (isChess ? '#18181b' : '#f1f5f9');
 
         if (!isWall && this.showHeatmap && typeof cell.val === 'number' && maxVal > minVal) {
           const ratio = (cell.val - minVal) / (maxVal - minVal);
-          fillColor = `rgba(56, 189, 248, ${0.15 + ratio * 0.75})`;
-          textColor = ratio > 0.6 ? '#ffffff' : '#e0f2fe';
+          fillColor = `rgba(21, 93, 252, ${0.18 + ratio * 0.72})`;
+          textColor = '#ffffff';
         }
 
-        // Base cell fill
         this.ctx.fillStyle = fillColor;
         this.ctx.fillRect(x, y, cs, cs);
 
-        // Wall subtle diagonal hatch
         if (isWall && cs >= 18) {
-          this.ctx.strokeStyle = 'rgba(100, 116, 139, 0.25)';
+          this.ctx.strokeStyle = 'rgba(148, 163, 184, 0.25)';
           this.ctx.lineWidth = 1;
           this.ctx.beginPath();
           this.ctx.moveTo(x + 3, y + cs - 3);
@@ -2108,8 +2470,7 @@ class GridVisualizer {
           this.ctx.stroke();
         }
 
-        // Custom user color OR algorithm component color
-        const overlayColor = this.algoOverlay?.colors?.[r]?.[c];
+        const overlayColor = item.algoOverlay?.colors?.[r]?.[c];
         const effectiveColor = cell.color || overlayColor;
         if (effectiveColor) {
           this.ctx.fillStyle = this.hexToRgba(effectiveColor, 0.38);
@@ -2119,18 +2480,16 @@ class GridVisualizer {
           this.ctx.strokeRect(x + 0.5, y + 0.5, cs - 1, cs - 1);
           textColor = '#f8fafc';
         } else {
-          this.ctx.strokeStyle = '#273549';
+          this.ctx.strokeStyle = isChess ? 'rgba(0, 0, 0, 0.1)' : '#262626';
           this.ctx.lineWidth = 1;
           this.ctx.strokeRect(x, y, cs, cs);
         }
 
-        // Algorithm shortest path cell tint
-        if (isOnPath && this.algoOverlay?.type !== 'spiral') {
+        if (isOnPath && item.algoOverlay?.type !== 'spiral') {
           this.ctx.fillStyle = 'rgba(16, 185, 129, 0.34)';
           this.ctx.fillRect(x, y, cs, cs);
         }
 
-        // Start (S) / Target (T) badges
         if (isStart) {
           this.ctx.fillStyle = 'rgba(16, 185, 129, 0.28)';
           this.ctx.fillRect(x, y, cs, cs);
@@ -2145,35 +2504,39 @@ class GridVisualizer {
           this.ctx.strokeRect(x + 1, y + 1, cs - 2, cs - 2);
         }
 
-        // Determine primary displayed value
         let displayVal = cell.val;
-        if (this.showPrefixOverlay) {
+        if (isActive && this.showPrefixOverlay && P) {
           displayVal = P[r + 1][c + 1];
-        } else if (this.showDiffOverlay) {
+        } else if (isActive && this.showDiffOverlay && D) {
           displayVal = D[r][c];
-        } else if (this.algoOverlay?.values) {
-          const av = this.algoOverlay.values[r][c];
+        } else if (item.algoOverlay?.values) {
+          const av = item.algoOverlay.values[r][c];
           displayVal = av !== null && av !== undefined ? av : (isWall ? '#' : '∞');
         } else if (isWall) {
           displayVal = '#';
+        } else if (isChess && typeof displayVal === 'string' && chessGlyphs[displayVal.toUpperCase()]) {
+          displayVal = chessGlyphs[displayVal.toUpperCase()];
+        } else if (isChess && (displayVal === 0 || displayVal === '0')) {
+          displayVal = '';
         }
 
-        // Cell Center Value (scales continuously with zoom, auto-fits long strings)
-        const textStr = String(displayVal);
-        let fontSize = Math.max(8, cs * 0.38);
-        this.ctx.font = `600 ${fontSize}px "JetBrains Mono", Menlo, monospace`;
-        const maxTextWidth = cs * 0.84;
-        const measuredWidth = this.ctx.measureText(textStr).width;
-        if (measuredWidth > maxTextWidth && maxTextWidth > 0) {
-          fontSize = Math.max(7, fontSize * (maxTextWidth / measuredWidth));
-          this.ctx.font = `600 ${fontSize}px "JetBrains Mono", Menlo, monospace`;
+        if (displayVal !== '') {
+          const textStr = String(displayVal);
+          const isGlyph = isChess && Object.values(chessGlyphs).includes(textStr);
+          let fontSize = isGlyph ? Math.max(14, cs * 0.62) : Math.max(8, cs * 0.38);
+          this.ctx.font = `${isGlyph ? '' : '600 '}${fontSize}px ${isGlyph ? 'sans-serif' : '"JetBrains Mono", Menlo, monospace'}`;
+          const maxTextWidth = cs * 0.84;
+          const measuredWidth = this.ctx.measureText(textStr).width;
+          if (!isGlyph && measuredWidth > maxTextWidth && maxTextWidth > 0) {
+            fontSize = Math.max(7, fontSize * (maxTextWidth / measuredWidth));
+            this.ctx.font = `600 ${fontSize}px "JetBrains Mono", Menlo, monospace`;
+          }
+          this.ctx.textAlign = 'center';
+          this.ctx.textBaseline = 'middle';
+          this.ctx.fillStyle = textColor;
+          this.ctx.fillText(textStr, x + cs / 2, y + cs / 2);
         }
-        this.ctx.textAlign = 'center';
-        this.ctx.textBaseline = 'middle';
-        this.ctx.fillStyle = textColor;
-        this.ctx.fillText(textStr, x + cs / 2, y + cs / 2);
 
-        // Start / End corner tag
         if ((isStart || isEnd) && cs >= 24) {
           const tagSize = Math.max(8, cs * 0.19);
           const pad = Math.max(2, cs * 0.07);
@@ -2186,20 +2549,19 @@ class GridVisualizer {
           const idxSize = Math.max(7, cs * 0.16);
           const pad = Math.max(2, cs * 0.06);
           this.ctx.font = `500 ${idxSize}px "JetBrains Mono", Menlo, monospace`;
-          this.ctx.fillStyle = 'rgba(56, 189, 248, 0.72)';
+          this.ctx.fillStyle = 'rgba(59, 130, 246, 0.75)';
           this.ctx.textAlign = 'left';
           this.ctx.textBaseline = 'top';
-          this.ctx.fillText(`${r * this.cols + c}`, x + pad, y + pad);
+          this.ctx.fillText(`${r * item.cols + c}`, x + pad, y + pad);
         }
 
-        // Coordinate subscripts (bottom-right)
         if (this.showSubscripts && cs >= 36) {
           const rDisp = isOneIdx ? r + 1 : r;
           const cDisp = isOneIdx ? c + 1 : c;
           const subFontSize = Math.max(7, cs * 0.16);
           const pad = Math.max(2, cs * 0.06);
           this.ctx.font = `500 ${subFontSize}px "JetBrains Mono", Menlo, monospace`;
-          this.ctx.fillStyle = 'rgba(148, 163, 184, 0.72)';
+          this.ctx.fillStyle = isChess ? 'rgba(24, 24, 27, 0.65)' : 'rgba(148, 163, 184, 0.72)';
           this.ctx.textAlign = 'right';
           this.ctx.textBaseline = 'bottom';
           this.ctx.fillText(`${rDisp},${cDisp}`, x + cs - pad, y + cs - pad * 0.65);
@@ -2207,12 +2569,12 @@ class GridVisualizer {
       }
     }
 
-    // 2. Algorithm Path Line (BFS / Dijkstra / DP / Spiral)
-    if (this.algoOverlay?.path && this.algoOverlay.path.length > 1) {
-      const path = this.algoOverlay.path;
+    // 2. Algorithm Path Line
+    if (item.algoOverlay?.path && item.algoOverlay.path.length > 1) {
+      const path = item.algoOverlay.path;
       this.ctx.save();
       this.ctx.beginPath();
-      this.ctx.strokeStyle = this.algoOverlay.type === 'spiral' ? 'rgba(56, 189, 248, 0.55)' : '#10b981';
+      this.ctx.strokeStyle = item.algoOverlay.type === 'spiral' ? 'rgba(59, 130, 246, 0.65)' : '#10b981';
       this.ctx.lineWidth = Math.max(2, cs * 0.065);
       this.ctx.lineJoin = 'round';
       this.ctx.lineCap = 'round';
@@ -2226,61 +2588,65 @@ class GridVisualizer {
       this.ctx.restore();
     }
 
-    // 3. Selection Highlight (Submatrix OR Diagonal Selected Cells)
-    if (this.submatrix) {
-      const { r1, c1, r2, c2 } = this.submatrix;
+    // 3. Selection Highlight
+    if (item.submatrix) {
+      const { r1, c1, r2, c2 } = item.submatrix;
       const sx = c1 * cs;
       const sy = r1 * cs;
       const sw = (c2 - c1 + 1) * cs;
       const sh = (r2 - r1 + 1) * cs;
 
-      this.ctx.fillStyle = 'rgba(56, 189, 248, 0.16)';
+      this.ctx.fillStyle = 'rgba(21, 93, 252, 0.18)';
       this.ctx.fillRect(sx, sy, sw, sh);
 
-      this.ctx.strokeStyle = '#38bdf8';
+      this.ctx.strokeStyle = '#3b82f6';
       this.ctx.lineWidth = Math.max(2, cs * 0.045);
       this.ctx.strokeRect(sx, sy, sw, sh);
-    } else if (this.selectedCells && this.selectedCells.length > 0) {
-      for (const { r, c } of this.selectedCells) {
+    } else if (item.selectedCells && item.selectedCells.length > 0) {
+      for (const { r, c } of item.selectedCells) {
         const sx = c * cs;
         const sy = r * cs;
-        this.ctx.fillStyle = 'rgba(56, 189, 248, 0.18)';
+        this.ctx.fillStyle = 'rgba(21, 93, 252, 0.2)';
         this.ctx.fillRect(sx, sy, cs, cs);
-        this.ctx.strokeStyle = '#38bdf8';
+        this.ctx.strokeStyle = '#3b82f6';
         this.ctx.lineWidth = Math.max(2, cs * 0.045);
         this.ctx.strokeRect(sx, sy, cs, cs);
       }
     }
 
     // 4. Hovered Cell border
-    if (this.hoverCell) {
-      const hx = this.hoverCell.col * cs;
-      const hy = this.hoverCell.row * cs;
-      this.ctx.strokeStyle = '#38bdf8';
+    if (this.hoverInfo && this.hoverInfo.itemIdx === itemIdx) {
+      const hx = this.hoverInfo.col * cs;
+      const hy = this.hoverInfo.row * cs;
+      this.ctx.strokeStyle = '#3b82f6';
       this.ctx.lineWidth = 2;
       this.ctx.strokeRect(hx, hy, cs, cs);
     }
 
     // 5. Row & Col Headers
-    this.renderHeaders(cs, isOneIdx);
+    this.renderHeaders(item, cs, isOneIdx, isActive);
 
     this.ctx.restore();
   }
 
-  renderHeaders(cs, isOneIdx) {
+  renderHeaders(item, cs, isOneIdx, isActive) {
     const headerFontSize = Math.max(9, cs * 0.28);
     const headerFont = `600 ${headerFontSize}px "JetBrains Mono", Menlo, monospace`;
     const headerGap = Math.max(6, cs * 0.16);
+    const isChess = item.kind === 'chess';
     this.ctx.font = headerFont;
 
     // Column Headers (Top)
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'bottom';
-    for (let c = 0; c < this.cols; c++) {
-      const isHoveredCol = (this.hoverCell && this.hoverCell.col === c) ||
-        (this.hoverHeader && this.hoverHeader.type === 'col' && this.hoverHeader.index === c);
-      this.ctx.fillStyle = isHoveredCol ? '#38bdf8' : '#94a3b8';
-      const label = isOneIdx ? c + 1 : c;
+    for (let c = 0; c < item.cols; c++) {
+      const isHoveredCol = (this.hoverInfo && this.hoverInfo.itemIdx === this.items.indexOf(item) && this.hoverInfo.col === c) ||
+        (this.hoverHeader && this.hoverHeader.itemIdx === this.items.indexOf(item) && this.hoverHeader.type === 'col' && this.hoverHeader.index === c);
+      this.ctx.fillStyle = isHoveredCol ? '#3b82f6' : (isActive ? '#a1a1aa' : '#71717a');
+      let label = isOneIdx ? c + 1 : c;
+      if (isChess && item.rows <= 26 && item.cols <= 26 && !isOneIdx) {
+        label = String.fromCharCode(97 + c);
+      }
       const x = c * cs + cs / 2;
       this.ctx.fillText(label, x, -headerGap);
     }
@@ -2288,19 +2654,22 @@ class GridVisualizer {
     // Row Headers (Left)
     this.ctx.textAlign = 'right';
     this.ctx.textBaseline = 'middle';
-    for (let r = 0; r < this.rows; r++) {
-      const isHoveredRow = (this.hoverCell && this.hoverCell.row === r) ||
-        (this.hoverHeader && this.hoverHeader.type === 'row' && this.hoverHeader.index === r);
-      this.ctx.fillStyle = isHoveredRow ? '#38bdf8' : '#94a3b8';
-      const label = isOneIdx ? r + 1 : r;
+    for (let r = 0; r < item.rows; r++) {
+      const isHoveredRow = (this.hoverInfo && this.hoverInfo.itemIdx === this.items.indexOf(item) && this.hoverInfo.row === r) ||
+        (this.hoverHeader && this.hoverHeader.itemIdx === this.items.indexOf(item) && this.hoverHeader.type === 'row' && this.hoverHeader.index === r);
+      this.ctx.fillStyle = isHoveredRow ? '#3b82f6' : (isActive ? '#a1a1aa' : '#71717a');
+      let label = isOneIdx ? r + 1 : r;
+      if (isChess && item.rows <= 26 && item.cols <= 26 && !isOneIdx) {
+        label = item.rows - r;
+      }
       const y = r * cs + cs / 2;
       this.ctx.fillText(label, -headerGap * 1.15, y);
     }
 
-    // Grid Outer Border
-    this.ctx.strokeStyle = '#374151';
-    this.ctx.lineWidth = 2;
-    this.ctx.strokeRect(0, 0, this.cols * cs, this.rows * cs);
+    // Outer Border
+    this.ctx.strokeStyle = isActive && this.items.length > 1 ? '#155dfc' : '#262626';
+    this.ctx.lineWidth = isActive && this.items.length > 1 ? 2.5 : 2;
+    this.ctx.strokeRect(0, 0, item.cols * cs, item.rows * cs);
   }
 
   // ==========================================
@@ -2345,26 +2714,35 @@ class GridVisualizer {
     try {
       const batchInput = document.getElementById('grid-batch-input');
       const state = {
-        rows: this.rows,
-        cols: this.cols,
-        grid: this.grid,
+        nextItemNum: this.nextItemNum,
+        activeItemIndex: this.activeItemIndex,
+        items: this.items.map(it => ({
+          id: it.id,
+          kind: it.kind || 'grid',
+          name: it.name,
+          rows: it.rows,
+          cols: it.cols,
+          offsetX: it.offsetX,
+          offsetY: it.offsetY,
+          grid: it.grid,
+          submatrix: it.submatrix,
+          selectedCells: it.selectedCells,
+          selectedCell: it.selectedCell,
+          startCells: it.startCells,
+          endCell: it.endCell
+        })),
         batchInputText: batchInput ? batchInput.value : '',
         showHeatmap: this.showHeatmap,
         showPrefixOverlay: this.showPrefixOverlay,
         showDiffOverlay: this.showDiffOverlay,
         showSubscripts: this.showSubscripts,
         show1DIndex: this.show1DIndex,
-        submatrix: this.submatrix,
-        selectedCells: this.selectedCells,
-        selectedCell: this.selectedCell,
         selectionMode: this.selectionMode,
         gridTool: this.gridTool,
         inputMode: this.inputMode,
         dirMode: this.dirMode,
         activeColor: this.activeColor,
-        autoPaint: this.autoPaint,
-        startCells: this.startCells,
-        endCell: this.endCell
+        autoPaint: this.autoPaint
       };
       localStorage.setItem('tracematrix_grid_state', JSON.stringify(state));
     } catch (e) {
@@ -2377,11 +2755,45 @@ class GridVisualizer {
       const raw = localStorage.getItem('tracematrix_grid_state');
       if (!raw) return false;
       const state = JSON.parse(raw);
-      if (!state || !Array.isArray(state.grid) || !state.rows || !state.cols) return false;
+      if (!state) return false;
 
-      this.rows = state.rows;
-      this.cols = state.cols;
-      this.grid = state.grid;
+      if (Array.isArray(state.items) && state.items.length > 0) {
+        this.items = state.items.map((si, idx) => {
+          const entry = this.createItemEntry(
+            si.rows || 10,
+            si.cols || 10,
+            si.offsetX || 0,
+            si.offsetY || 0,
+            si.name || `Grid ${idx + 1}`,
+            si.kind || 'grid'
+          );
+          if (si.id) entry.id = si.id;
+          if (Array.isArray(si.grid)) entry.grid = si.grid;
+          if (si.submatrix) entry.submatrix = si.submatrix;
+          if (Array.isArray(si.selectedCells)) entry.selectedCells = si.selectedCells;
+          if (si.selectedCell) entry.selectedCell = si.selectedCell;
+          if (Array.isArray(si.startCells)) entry.startCells = si.startCells;
+          if (si.endCell) entry.endCell = si.endCell;
+          return entry;
+        });
+        this.nextItemNum = Math.max(
+          state.nextItemNum || 1,
+          ...this.items.map(it => (it.id || 0) + 1)
+        );
+        this.activeItemIndex = Math.max(0, Math.min(this.items.length - 1, state.activeItemIndex || 0));
+      } else if (Array.isArray(state.grid) && state.rows && state.cols) {
+        const entry = this.createItemEntry(state.rows, state.cols, 0, 0, 'Grid 1', 'grid');
+        entry.grid = state.grid;
+        if (state.submatrix) entry.submatrix = state.submatrix;
+        if (Array.isArray(state.selectedCells)) entry.selectedCells = state.selectedCells;
+        if (state.selectedCell) entry.selectedCell = state.selectedCell;
+        if (Array.isArray(state.startCells)) entry.startCells = state.startCells;
+        if (state.endCell) entry.endCell = state.endCell;
+        this.items = [entry];
+        this.activeItemIndex = 0;
+      } else {
+        return false;
+      }
 
       if (state.batchInputText !== undefined) {
         const batchInput = document.getElementById('grid-batch-input');
@@ -2393,9 +2805,6 @@ class GridVisualizer {
       if (typeof state.showDiffOverlay === 'boolean') this.showDiffOverlay = state.showDiffOverlay;
       if (typeof state.showSubscripts === 'boolean') this.showSubscripts = state.showSubscripts;
       if (typeof state.show1DIndex === 'boolean') this.show1DIndex = state.show1DIndex;
-      if (state.submatrix) this.submatrix = state.submatrix;
-      if (Array.isArray(state.selectedCells)) this.selectedCells = state.selectedCells;
-      if (state.selectedCell) this.selectedCell = state.selectedCell;
       if (state.selectionMode) {
         this.selectionMode = state.selectionMode === 'subarray' ? 'submatrix' : state.selectionMode;
       }
@@ -2406,10 +2815,8 @@ class GridVisualizer {
       if (state.dirMode === 4 || state.dirMode === 8) this.dirMode = state.dirMode;
       if (state.activeColor) this.activeColor = state.activeColor;
       if (typeof state.autoPaint === 'boolean') this.autoPaint = state.autoPaint;
-      if (Array.isArray(state.startCells)) this.startCells = state.startCells;
-      if (state.endCell) this.endCell = state.endCell;
 
-      this.updateDimBadge();
+      this.syncItemSelector();
       this.syncControlStatesUI();
       this.updateSubmatrixStats();
       return true;
