@@ -559,6 +559,31 @@ class PointVisualizer {
     }
   }
 
+  cancelAllActivities() {
+    const hadActivity = !!(
+      this.connectingPoint ||
+      this.selectedPoints.length > 0 ||
+      this.draggedPoint ||
+      this.isPanning ||
+      this.convexHull ||
+      this.closestPair ||
+      this.measureResult
+    );
+    this.connectingPoint = null;
+    this.selectedPoints = [];
+    this.draggedPoint = null;
+    this.isPanning = false;
+    this.convexHull = null;
+    this.closestPair = null;
+    this.measureResult = null;
+    document.getElementById('geom-results-box')?.classList.add('hidden');
+    this.updateCursor();
+    this.render();
+    if (hadActivity) {
+      window.App?.showToast('Cancelled active geometry tools & overlays', 'info');
+    }
+  }
+
   addPoint(x, y, label = null, syncText = true) {
     const id = this.nextPointId++;
     const ptLabel = label || this.getAlphabetLabel(id);

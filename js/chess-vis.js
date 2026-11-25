@@ -784,6 +784,36 @@ class ChessVisualizer {
     this.ctx.strokeRect(0, 0, this.cols * sz, this.rows * sz);
   }
 
+  cancelAllActivities() {
+    const hadActivity = !!(
+      this.knightStart ||
+      this.knightDistances ||
+      this.knightTarget ||
+      this.knightPath ||
+      this.knightsTourMoves ||
+      this.nqueensSolutions?.length ||
+      this.nqueensTimer ||
+      this.selectedSquare ||
+      this.isPanning
+    );
+    if (this.nqueensTimer) {
+      clearInterval(this.nqueensTimer);
+      this.nqueensTimer = null;
+    }
+    this.knightStart = null;
+    this.knightDistances = null;
+    this.knightTarget = null;
+    this.knightPath = null;
+    this.knightsTourMoves = null;
+    this.nqueensSolutions = [];
+    this.selectedSquare = null;
+    this.isPanning = false;
+    this.render();
+    if (hadActivity) {
+      window.App?.showToast('Cancelled active chess overlays & paths', 'info');
+    }
+  }
+
   // ==========================================
   // PERSISTENCE (localStorage)
   // ==========================================

@@ -253,11 +253,48 @@ class AppCoordinator {
   // ==========================================
   // GLOBAL SHORTCUTS
   // ==========================================
+  cancelAllActive() {
+    const dialog = document.getElementById('shortcuts-dialog');
+    if (dialog?.open) dialog.close();
+
+    if (this.currentTab === 'grid') window.gridVis?.cancelAllActivities?.();
+    else if (this.currentTab === 'point') window.pointVis?.cancelAllActivities?.();
+    else if (this.currentTab === 'chess') window.chessVis?.cancelAllActivities?.();
+  }
+
   initGlobalShortcuts() {
     window.addEventListener('keydown', (e) => {
       const target = e.target;
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+      const isEditable = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+
+      if (e.key === 'Escape') {
+        if (target.classList?.contains('cell-inline-input')) {
+          return; // inline editor handles its own Esc first
+        }
+        if (isEditable) {
+          target.blur();
+        }
+        this.cancelAllActive();
         return;
+      }
+
+      if (isEditable) {
+        return;
+      }
+
+      // Undo / Redo for Grid Visualizer
+      if ((e.ctrlKey || e.metaKey) && this.currentTab === 'grid') {
+        if (e.key.toLowerCase() === 'z') {
+          e.preventDefault();
+          if (e.shiftKey) window.gridVis?.redo?.();
+          else window.gridVis?.undo?.();
+          return;
+        }
+        if (e.key.toLowerCase() === 'y') {
+          e.preventDefault();
+          window.gridVis?.redo?.();
+          return;
+        }
       }
 
       if (e.key === '1') {
@@ -286,8 +323,6 @@ class AppCoordinator {
         else if (this.currentTab === 'chess') window.chessVis?.resetView();
       } else if (e.key === 'h' || e.key === 'H') {
         if (this.currentTab === 'point') window.pointVis?.computeConvexHull();
-      } else if (e.key === 'Escape') {
-        if (this.currentTab === 'point') window.pointVis?.cancelConnecting();
       } else if (e.key === 'Enter') {
         if (this.currentTab === 'chess') window.chessVis?.triggerKnightBFS();
       }
