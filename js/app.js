@@ -326,6 +326,8 @@ class AppCoordinator {
         else if (this.currentTab === 'chess') window.chessVis?.resetView();
       } else if (e.key === 'h' || e.key === 'H') {
         if (this.currentTab === 'point') window.pointVis?.computeConvexHull();
+      } else if (e.key === 'c' || e.key === 'C') {
+        if (this.currentTab === 'point') window.pointVis?.startDynamicCircle();
       } else if (e.key === 'Enter') {
         if (this.currentTab === 'chess') window.chessVis?.triggerKnightBFS();
       }

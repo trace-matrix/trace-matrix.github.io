@@ -40,6 +40,9 @@ class PointVisualizer {
     this.dragStartedSnapshot = false;
     this.selectedPoints = [];
     this.selectedSegment = null;
+    this.selectedCircle = null;
+    this.drawingCircle = null; // { center: { x, y, label? } | null, radius: number, awaitingCenter: boolean }
+    this.draggingCircleEdge = null;
     this.isPanning = false;
     this.lastMouseX = 0;
     this.lastMouseY = 0;
@@ -270,28 +273,60 @@ class PointVisualizer {
       this.saveState();
     });
 
-    // Manual Point / Circle Add
-    const addManualFn = () => {
+    // Manual Point & Circle Add
+    const addPointFn = () => {
+      const x = parseFloat(document.getElementById('manual-x')?.value);
+      const y = parseFloat(document.getElementById('manual-y')?.value);
+      const vx = !isNaN(x) ? x : 0;
+      const vy = !isNaN(y) ? y : 0;
+      this.pushUndo();
+      this.addPoint(vx, vy);
+    };
+    const addCircleFn = () => {
       const x = parseFloat(document.getElementById('manual-x')?.value);
       const y = parseFloat(document.getElementById('manual-y')?.value);
       const r = parseFloat(document.getElementById('manual-r')?.value);
       const vx = !isNaN(x) ? x : 0;
       const vy = !isNaN(y) ? y : 0;
+      const vr = (!isNaN(r) && r > 0) ? r : 3;
       this.pushUndo();
-      if (!isNaN(r) && r > 0) {
-        this.addCircle(vx, vy, r);
-      } else {
-        this.addPoint(vx, vy);
+      if (!this.points.some(p => Math.abs(p.x - vx) < 1e-6 && Math.abs(p.y - vy) < 1e-6)) {
+        this.addPoint(vx, vy, null, false);
       }
+      const c = this.addCircle(vx, vy, vr);
+      this.selectedCircle = c;
+      this.updateInspector();
+      window.App?.showToast(`Added circle at (${vx}, ${vy}) with r=${vr}`, 'success');
     };
-    document.getElementById('btn-add-manual-pt')?.addEventListener('click', addManualFn);
+    document.getElementById('btn-add-manual-pt')?.addEventListener('click', addPointFn);
+    document.getElementById('btn-add-circle')?.addEventListener('click', addCircleFn);
+    document.getElementById('btn-draw-circle')?.addEventListener('click', () => this.startDynamicCircle());
+
     document.querySelectorAll('#pt-quick-add input').forEach(inp => {
       inp.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
           e.preventDefault();
-          addManualFn();
+          addPointFn();
         }
       });
+    });
+
+    const manualRInput = document.getElementById('manual-r');
+    manualRInput?.addEventListener('input', () => {
+      const r = parseFloat(manualRInput.value);
+      if (this.selectedCircle && !isNaN(r) && r > 0) {
+        this.selectedCircle.r = r;
+        this.syncInputTextarea();
+        this.updateInspector();
+        this.render();
+        this.saveState();
+      }
+    });
+    manualRInput?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        addCircleFn();
+      }
     });
 
     // Utility Segmented Bar (Undo, Redo, Random, Clear) & Copy
@@ -426,16 +461,63 @@ class PointVisualizer {
   }
 
   applyColorToSelection(color, showToast = true) {
-    const hasSel = this.selectedPoints.length > 0 || !!this.selectedSegment;
+    const hasSel = this.selectedPoints.length > 0 || !!this.selectedSegment || !!this.selectedCircle;
     if (!hasSel) return;
     this.pushUndo();
     for (const p of this.selectedPoints) p.color = color;
     if (this.selectedSegment) this.selectedSegment.color = color;
+    if (this.selectedCircle) this.selectedCircle.color = color;
     this.render();
     this.saveState();
     if (showToast) {
       window.App?.showToast('Updated color of selection', 'info');
     }
+  }
+
+  syncManualInputsFromPoint(pt) {
+    if (!pt) return;
+    const ix = document.getElementById('manual-x');
+    const iy = document.getElementById('manual-y');
+    if (ix) ix.value = pt.x;
+    if (iy) iy.value = pt.y;
+  }
+
+  updateDrawCircleBtnUI() {
+    const btn = document.getElementById('btn-draw-circle');
+    if (!btn) return;
+    const active = !!this.drawingCircle;
+    btn.classList.toggle('btn-primary', active);
+    btn.classList.toggle('btn-secondary', !active);
+    btn.textContent = active ? (this.drawingCircle.awaitingCenter ? 'Pick Center...' : 'Set Radius...') : 'Draw Circle';
+  }
+
+  startDynamicCircle() {
+    if (this.drawingCircle) {
+      this.drawingCircle = null;
+      this.updateDrawCircleBtnUI();
+      this.updateCursor();
+      this.render();
+      return;
+    }
+
+    this.connectingPoint = null;
+    if (this.selectedPoints.length > 0) {
+      const centerPt = this.selectedPoints[this.selectedPoints.length - 1];
+      this.syncManualInputsFromPoint(centerPt);
+      const initR = parseFloat(document.getElementById('manual-r')?.value) || 3;
+      this.drawingCircle = {
+        center: { x: centerPt.x, y: centerPt.y, label: centerPt.label },
+        radius: initR,
+        awaitingCenter: false
+      };
+      window.App?.showToast(`Center ${centerPt.label}(${centerPt.x},${centerPt.y}) — move mouse to set radius & click`, 'info');
+    } else {
+      this.drawingCircle = { center: null, radius: 0, awaitingCenter: true };
+      window.App?.showToast('Click a point on the canvas for the circle center', 'info');
+    }
+    this.updateDrawCircleBtnUI();
+    this.updateCursor();
+    this.render();
   }
 
   // ==========================================
@@ -523,11 +605,11 @@ class PointVisualizer {
 
   updateCursor() {
     if (!this.canvas) return;
-    if (this.isPanning || this.draggedPoint) {
+    if (this.isPanning || this.draggedPoint || this.draggingCircleEdge) {
       this.canvas.style.cursor = 'grabbing';
-    } else if (this.connectingPoint || this.activeTool === 'query' || this.activeTool === 'segment') {
+    } else if (this.drawingCircle || this.connectingPoint || this.activeTool === 'query' || this.activeTool === 'segment') {
       this.canvas.style.cursor = this.hoverPoint ? 'pointer' : 'crosshair';
-    } else if (this.hoverPoint || this.hoverSegment) {
+    } else if (this.hoverPoint || this.hoverSegment || this.hoverCircle) {
       this.canvas.style.cursor = 'pointer';
     } else if (this.activeTool === 'move') {
       this.canvas.style.cursor = 'grab';
@@ -554,6 +636,43 @@ class PointVisualizer {
     const sx = e.clientX - rect.left;
     const sy = e.clientY - rect.top;
     const clickedPoint = this.findPointAt(sx, sy);
+
+    if (this.drawingCircle) {
+      const world = this.screenToWorld(sx, sy);
+      if (this.drawingCircle.awaitingCenter) {
+        let centerPt = clickedPoint;
+        if (!centerPt) {
+          const wx = this.snapToInteger ? Math.round(world.x) : Number(world.x.toFixed(2));
+          const wy = this.snapToInteger ? Math.round(world.y) : Number(world.y.toFixed(2));
+          this.pushUndo();
+          centerPt = this.addPoint(wx, wy);
+        }
+        this.selectedPoints = [centerPt];
+        this.syncManualInputsFromPoint(centerPt);
+        this.drawingCircle.center = { x: centerPt.x, y: centerPt.y, label: centerPt.label };
+        this.drawingCircle.awaitingCenter = false;
+        this.drawingCircle.radius = 1;
+        this.updateDrawCircleBtnUI();
+        this.updateInspector();
+        this.render();
+      } else {
+        const c = this.drawingCircle.center;
+        const dist = Math.hypot(world.x - c.x, world.y - c.y);
+        const r = this.snapToInteger ? Math.max(1, Math.round(dist)) : Math.max(0.1, Number(dist.toFixed(2)));
+        this.pushUndo();
+        const circ = this.addCircle(c.x, c.y, r);
+        this.selectedCircle = circ;
+        this.drawingCircle = null;
+        this.updateDrawCircleBtnUI();
+        const mr = document.getElementById('manual-r');
+        if (mr) mr.value = r;
+        this.updateInspector();
+        this.updateCursor();
+        this.render();
+        window.App?.showToast(`Added circle at (${c.x}, ${c.y}) with r=${r}`, 'success');
+      }
+      return;
+    }
 
     if (this.connectingPoint) {
       if (clickedPoint && clickedPoint !== this.connectingPoint) {
@@ -622,6 +741,7 @@ class PointVisualizer {
 
     // Default 'move' tool
     if (clickedPoint) {
+      this.selectedCircle = null;
       this.draggedPoint = clickedPoint;
       this.dragStartedSnapshot = false;
       this.downScreenPos = { x: sx, y: sy };
@@ -629,17 +749,36 @@ class PointVisualizer {
     } else {
       const seg = this.findSegmentAt(sx, sy);
       if (seg) {
+        this.selectedCircle = null;
         this.selectedSegment = seg;
         this.selectedPoints = [seg.p1, seg.p2];
         this.updateInspector();
         this.render();
       } else {
-        this.selectedPoints = [];
-        this.selectedSegment = null;
-        this.isPanning = true;
-        this.lastMouseX = e.clientX;
-        this.lastMouseY = e.clientY;
-        this.updateInspector();
+        const circ = this.findCircleAt(sx, sy);
+        if (circ) {
+          this.selectedPoints = [];
+          this.selectedSegment = null;
+          this.selectedCircle = circ;
+          this.draggingCircleEdge = circ;
+          this.dragStartedSnapshot = false;
+          const ix = document.getElementById('manual-x');
+          const iy = document.getElementById('manual-y');
+          const ir = document.getElementById('manual-r');
+          if (ix) ix.value = circ.x;
+          if (iy) iy.value = circ.y;
+          if (ir) ir.value = circ.r;
+          this.updateInspector();
+          this.render();
+        } else {
+          this.selectedPoints = [];
+          this.selectedSegment = null;
+          this.selectedCircle = null;
+          this.isPanning = true;
+          this.lastMouseX = e.clientX;
+          this.lastMouseY = e.clientY;
+          this.updateInspector();
+        }
       }
     }
     this.updateCursor();
@@ -666,6 +805,33 @@ class PointVisualizer {
     this.mouseWorldY = world.y;
     this.updateStatusPill();
 
+    if (this.drawingCircle && !this.drawingCircle.awaitingCenter) {
+      const c = this.drawingCircle.center;
+      const dist = Math.hypot(world.x - c.x, world.y - c.y);
+      const r = this.snapToInteger ? Math.max(1, Math.round(dist)) : Math.max(0.1, Number(dist.toFixed(2)));
+      this.drawingCircle.radius = r;
+      const mr = document.getElementById('manual-r');
+      if (mr) mr.value = r;
+      this.render();
+      return;
+    }
+
+    if (this.draggingCircleEdge) {
+      if (!this.dragStartedSnapshot) {
+        this.pushUndo();
+        this.dragStartedSnapshot = true;
+      }
+      const c = this.draggingCircleEdge;
+      const dist = Math.hypot(world.x - c.x, world.y - c.y);
+      const r = this.snapToInteger ? Math.max(1, Math.round(dist)) : Math.max(0.1, Number(dist.toFixed(2)));
+      c.r = r;
+      const mr = document.getElementById('manual-r');
+      if (mr) mr.value = r;
+      this.updateInspector();
+      this.render();
+      return;
+    }
+
     if (this.draggedPoint) {
       if (!this.dragMoved && this.downScreenPos) {
         if (Math.hypot(sx - this.downScreenPos.x, sy - this.downScreenPos.y) < 4) {
@@ -679,6 +845,7 @@ class PointVisualizer {
       }
       this.draggedPoint.x = this.snapToInteger ? Math.round(world.x) : Number(world.x.toFixed(2));
       this.draggedPoint.y = this.snapToInteger ? Math.round(world.y) : Number(world.y.toFixed(2));
+      this.syncManualInputsFromPoint(this.draggedPoint);
       this.updatePointTable();
       this.updateInspector();
       this.render();
@@ -687,18 +854,27 @@ class PointVisualizer {
 
     this.hoverPoint = this.findPointAt(sx, sy);
     this.hoverSegment = this.findSegmentAt(sx, sy);
+    this.hoverCircle = !this.hoverPoint && !this.hoverSegment ? this.findCircleAt(sx, sy) : null;
     this.updateCursor();
     this.render();
   }
 
   handleMouseUp(e) {
     let stateChanged = false;
+    if (this.draggingCircleEdge) {
+      this.draggingCircleEdge = null;
+      this.syncInputTextarea();
+      stateChanged = true;
+    }
     if (this.draggedPoint) {
       if (!this.dragMoved) {
         this.selectedSegment = null;
         const idx = this.selectedPoints.indexOf(this.draggedPoint);
         if (idx >= 0) this.selectedPoints.splice(idx, 1);
         else this.selectedPoints.push(this.draggedPoint);
+        if (this.selectedPoints.length > 0) {
+          this.syncManualInputsFromPoint(this.selectedPoints[this.selectedPoints.length - 1]);
+        }
         this.updateInspector();
       } else {
         this.syncInputTextarea();
@@ -757,6 +933,14 @@ class PointVisualizer {
 
   handleContextMenu(e) {
     e.preventDefault();
+    if (this.drawingCircle) {
+      this.drawingCircle = null;
+      this.updateDrawCircleBtnUI();
+      this.updateCursor();
+      this.render();
+      return;
+    }
+
     if (this.connectingPoint) {
       this.cancelConnecting();
       return;
@@ -784,8 +968,11 @@ class PointVisualizer {
     const circ = this.findCircleAt(sx, sy);
     if (circ) {
       this.pushUndo();
+      if (this.selectedCircle === circ) this.selectedCircle = null;
       this.circles = this.circles.filter(c => c.id !== circ.id);
       this.syncInputTextarea();
+      this.updatePointTable();
+      this.updateInspector();
       this.render();
       this.saveState();
       window.App?.showToast(`Deleted circle (${circ.x}, ${circ.y}, r=${circ.r})`, 'info');
@@ -802,6 +989,9 @@ class PointVisualizer {
 
   cancelAllActivities() {
     const hadActivity = !!(
+      this.drawingCircle ||
+      this.draggingCircleEdge ||
+      this.selectedCircle ||
       this.connectingPoint ||
       this.selectedPoints.length > 0 ||
       this.selectedSegment ||
@@ -816,11 +1006,15 @@ class PointVisualizer {
       this.measureResult ||
       this.activeTool !== 'move'
     );
+    this.drawingCircle = null;
+    this.draggingCircleEdge = null;
+    this.selectedCircle = null;
     this.connectingPoint = null;
     this.selectedPoints = [];
     this.selectedSegment = null;
     this.draggedPoint = null;
     this.isPanning = false;
+    this.updateDrawCircleBtnUI();
     this.clearAlgoOverlays();
     this.setActiveTool('move');
     this.updateInspector();
@@ -1005,6 +1199,18 @@ class PointVisualizer {
     const l3 = document.getElementById('pt-lbl-m3');
     const v3 = document.getElementById('pt-stat-metric3');
     if (!selEl || !l1 || !v1 || !l2 || !v2 || !l3 || !v3) return;
+
+    if (this.selectedCircle) {
+      const c = this.selectedCircle;
+      selEl.textContent = `Circle (${c.x}, ${c.y})`;
+      l1.textContent = 'Radius (r):';
+      v1.textContent = `${c.r}`;
+      l2.textContent = 'Area (πr²):';
+      v2.textContent = (Math.PI * c.r * c.r).toFixed(3);
+      l3.textContent = 'Circumference:';
+      v3.textContent = (2 * Math.PI * c.r).toFixed(3);
+      return;
+    }
 
     const pts = this.selectedPoints;
     if (pts.length === 1) {
@@ -1524,18 +1730,95 @@ class PointVisualizer {
     for (const c of this.circles) {
       const sc = this.worldToScreen(c.x, c.y);
       const rPx = c.r * this.scale;
+      const isSel = this.selectedCircle === c;
+      const isHov = this.hoverCircle === c;
       this.ctx.save();
       this.ctx.beginPath();
       this.ctx.arc(sc.x, sc.y, rPx, 0, Math.PI * 2);
-      this.ctx.fillStyle = 'rgba(56, 189, 248, 0.08)';
+      this.ctx.fillStyle = isSel ? 'rgba(56, 189, 248, 0.14)' : 'rgba(56, 189, 248, 0.08)';
       this.ctx.fill();
-      this.ctx.strokeStyle = c.color || '#38bdf8';
-      this.ctx.lineWidth = 2;
+      this.ctx.strokeStyle = isSel ? '#f59e0b' : (isHov ? '#7dd3fc' : (c.color || '#38bdf8'));
+      this.ctx.lineWidth = isSel ? 2.6 : 2;
       this.ctx.stroke();
+
+      // Center marker
       this.ctx.beginPath();
-      this.ctx.arc(sc.x, sc.y, 3, 0, Math.PI * 2);
-      this.ctx.fillStyle = c.color || '#38bdf8';
+      this.ctx.arc(sc.x, sc.y, 3.5, 0, Math.PI * 2);
+      this.ctx.fillStyle = isSel ? '#f59e0b' : (c.color || '#38bdf8');
       this.ctx.fill();
+
+      // Radius line & label for circles
+      if (this.showLabels || isSel || isHov) {
+        this.ctx.beginPath();
+        this.ctx.setLineDash([4, 3]);
+        this.ctx.strokeStyle = isSel ? 'rgba(245, 158, 11, 0.7)' : 'rgba(148, 163, 184, 0.5)';
+        this.ctx.lineWidth = 1.2;
+        this.ctx.moveTo(sc.x, sc.y);
+        this.ctx.lineTo(sc.x + rPx, sc.y);
+        this.ctx.stroke();
+        this.ctx.setLineDash([]);
+
+        const rText = `r=${c.r}`;
+        this.ctx.font = '600 10.5px "JetBrains Mono", Menlo, monospace';
+        const tw = this.ctx.measureText(rText).width;
+        const px = sc.x + rPx / 2;
+        const py = sc.y - 10;
+        this.ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+        this.ctx.beginPath();
+        this.ctx.roundRect(px - tw / 2 - 4, py - 8, tw + 8, 16, 4);
+        this.ctx.fill();
+        this.ctx.fillStyle = isSel ? '#fbbf24' : '#e0f2fe';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText(rText, px, py);
+      }
+      this.ctx.restore();
+    }
+
+    // 1b. Dynamic Circle Radius Preview
+    if (this.drawingCircle && !this.drawingCircle.awaitingCenter && this.drawingCircle.center) {
+      const c = this.drawingCircle.center;
+      const sc = this.worldToScreen(c.x, c.y);
+      const rPx = this.drawingCircle.radius * this.scale;
+      const mx = this.lastMouseCanvasX || (sc.x + rPx);
+      const my = this.lastMouseCanvasY || sc.y;
+
+      this.ctx.save();
+      this.ctx.beginPath();
+      this.ctx.arc(sc.x, sc.y, rPx, 0, Math.PI * 2);
+      this.ctx.fillStyle = 'rgba(56, 189, 248, 0.12)';
+      this.ctx.fill();
+      this.ctx.strokeStyle = '#38bdf8';
+      this.ctx.lineWidth = 2;
+      this.ctx.setLineDash([6, 4]);
+      this.ctx.stroke();
+
+      // Dynamic radius vector line from center to cursor
+      this.ctx.beginPath();
+      this.ctx.moveTo(sc.x, sc.y);
+      this.ctx.lineTo(mx, my);
+      this.ctx.strokeStyle = '#fbbf24';
+      this.ctx.lineWidth = 1.8;
+      this.ctx.stroke();
+
+      // Live radius badge
+      const rTip = `r = ${this.drawingCircle.radius}`;
+      this.ctx.setLineDash([]);
+      this.ctx.font = '600 11px "JetBrains Mono", Menlo, monospace';
+      const tw = this.ctx.measureText(rTip).width;
+      const bx = (sc.x + mx) / 2;
+      const by = (sc.y + my) / 2 - 12;
+      this.ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+      this.ctx.strokeStyle = '#f59e0b';
+      this.ctx.lineWidth = 1;
+      this.ctx.beginPath();
+      this.ctx.roundRect(bx - tw / 2 - 5, by - 9, tw + 10, 18, 4);
+      this.ctx.fill();
+      this.ctx.stroke();
+      this.ctx.fillStyle = '#fbbf24';
+      this.ctx.textAlign = 'center';
+      this.ctx.textBaseline = 'middle';
+      this.ctx.fillText(rTip, bx, by);
       this.ctx.restore();
     }
 
