@@ -19,6 +19,7 @@ class AppCoordinator {
     window.gridVis = new GridVisualizer();
     window.pointVis = new PointVisualizer();
     window.chessVis = new ChessVisualizer();
+    window.canvasNotes = new CanvasNotesManager();
 
     this.loadState();
 
@@ -160,6 +161,7 @@ class AppCoordinator {
       this.saveState();
 
       if (window.gridVis) {
+        window.gridVis.syncBatchInputFromGrid();
         window.gridVis.updateSubmatrixStats();
         window.gridVis.updateStatusPill();
         window.gridVis.render();

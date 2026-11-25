@@ -153,7 +153,8 @@ class GridVisualizer {
       startCells: [],
       endCell: null,
       algoOverlay: null,
-      windowPos: -1
+      windowPos: -1,
+      inputText: ''
     };
   }
 
@@ -183,10 +184,12 @@ class GridVisualizer {
     if (cloneActive) {
       entry.grid = this.cloneGridCells(ref.grid);
       entry.name = `${ref.name} Copy`;
+      entry.inputText = ref.inputText || '';
     }
 
     this.items.push(entry);
     this.setActiveItem(this.items.length - 1, false);
+    this.syncBatchInputFromGrid();
     this.fitGrid();
     this.saveState();
     window.App?.showToast(
@@ -215,6 +218,7 @@ class GridVisualizer {
     if (idx < 0 || idx >= this.items.length) return;
     this.activeItemIndex = idx;
     this.syncItemSelector();
+    this.syncBatchInputFromGrid();
     this.updateSubmatrixStats();
     if (shouldRender) {
       this.render();
@@ -278,9 +282,11 @@ class GridVisualizer {
     item.endCell = null;
     item.algoOverlay = null;
     item.windowPos = -1;
+    item.inputText = '';
     this.hoverInfo = null;
     this.hideAlgoResult();
     this.syncItemSelector();
+    this.syncBatchInputFromGrid();
     this.updateSubmatrixStats();
   }
 
@@ -320,6 +326,7 @@ class GridVisualizer {
     }
     this.hideAlgoResult();
     this.syncItemSelector();
+    this.syncBatchInputFromGrid();
     this.updateSubmatrixStats();
     this.render();
     this.saveState();
@@ -1140,6 +1147,7 @@ class GridVisualizer {
       this.saveState();
     }
     if (this.isDragging && this.gridTool === 'wall') {
+      this.syncBatchInputFromGrid();
       this.saveState();
     }
     if (this.isSelectingSubmatrix || this.headerDrag) {
@@ -1209,6 +1217,7 @@ class GridVisualizer {
       cell.isWall = finalVal === '#';
 
       this.selectedCell = { row, col };
+      this.syncBatchInputFromGrid();
       this.updateSubmatrixStats();
       this.render();
       input.remove();
@@ -1266,6 +1275,7 @@ class GridVisualizer {
     this.submatrix = null;
     this.selectedCells = null;
     this.hideAlgoResult();
+    this.syncBatchInputFromGrid();
     this.updateSubmatrixStats();
     this.render();
     this.saveState();
@@ -1295,6 +1305,7 @@ class GridVisualizer {
     }
     this.algoOverlay = null;
     this.hideAlgoResult();
+    this.syncBatchInputFromGrid();
     this.updateSubmatrixStats();
     this.render();
     this.saveState();
@@ -1319,6 +1330,7 @@ class GridVisualizer {
     this.endCell = { r: this.rows - 1, c: this.cols - 1 };
     this.algoOverlay = null;
     this.hideAlgoResult();
+    this.syncBatchInputFromGrid();
     this.updateSubmatrixStats();
     this.render();
     this.saveState();
@@ -1350,17 +1362,72 @@ class GridVisualizer {
     }).catch(() => {});
   }
 
+  syncBatchInputFromGrid() {
+    const batchInput = document.getElementById('grid-batch-input');
+    const item = this.activeItem;
+    if (!item) return;
+
+    const existingText = batchInput ? batchInput.value : (item.inputText || '');
+    const existingLines = existingText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+    const existingTokens = existingLines.map(l => l.split(/[\s,;]+/).filter(t => t.length > 0));
+    const looksLikeMatrix = existingLines.length > 0 && (
+      (existingTokens[0].length >= 4 && existingTokens.every(t => t.length === existingTokens[0].length)) ||
+      (existingTokens.length >= 2 && existingTokens[0].length === 2 && existingTokens.slice(1).every(t => t.length >= 4)) ||
+      existingTokens.every(t => t.length === 1 && t[0].length >= 2 && /[^0-9\-]/.test(t[0]))
+    );
+
+    let nonDefaultCount = 0;
+    for (let r = 0; r < item.rows; r++) {
+      for (let c = 0; c < item.cols; c++) {
+        const cell = item.grid[r][c];
+        if (cell.isWall || cell.val !== 0) nonDefaultCount++;
+      }
+    }
+
+    const totalCells = item.rows * item.cols;
+    const useMatrixFormat =
+      this.inputMode === 'matrix' ||
+      looksLikeMatrix ||
+      (item.cols >= 4 && nonDefaultCount > Math.max(4, Math.floor(totalCells / 2)));
+
+    let text = '';
+    if (useMatrixFormat && nonDefaultCount > 0) {
+      const lines = [];
+      for (let r = 0; r < item.rows; r++) {
+        lines.push(item.grid[r].map(c => (c.isWall ? '#' : c.val)).join(' '));
+      }
+      text = lines.join('\n');
+    } else if (nonDefaultCount > 0) {
+      const offset = window.App?.isOneIndexed ? 1 : 0;
+      const lines = [];
+      for (let r = 0; r < item.rows; r++) {
+        for (let c = 0; c < item.cols; c++) {
+          const cell = item.grid[r][c];
+          if (cell.isWall || cell.val !== 0) {
+            lines.push(`${r + offset} ${c + offset} ${cell.isWall ? '#' : cell.val}`);
+          }
+        }
+      }
+      text = lines.join('\n');
+    }
+
+    item.inputText = text;
+    if (batchInput && batchInput.value !== text) {
+      batchInput.value = text;
+    }
+  }
+
   resetBatchCells() {
     for (let r = 0; r < this.rows; r++) {
       for (let c = 0; c < this.cols; c++) {
-        if (this.grid[r][c].source !== 'manual') {
-          this.grid[r][c].val = 0;
-          this.grid[r][c].type = 'empty';
-          this.grid[r][c].source = 'empty';
-          this.grid[r][c].isWall = false;
-        }
+        this.grid[r][c].val = 0;
+        this.grid[r][c].type = 'empty';
+        this.grid[r][c].source = 'empty';
+        this.grid[r][c].isWall = false;
       }
     }
+    this.startCells = [];
+    this.endCell = null;
   }
 
   parseTokenValue(valStr) {
@@ -1411,6 +1478,7 @@ class GridVisualizer {
   }
 
   parseBatchInput(rawText, showToast = true) {
+    this.activeItem.inputText = rawText || '';
     this.resetBatchCells();
 
     if (!rawText || !rawText.trim()) {
@@ -1433,9 +1501,17 @@ class GridVisualizer {
     let startLine = 0;
     let headerDim = null;
 
-    // Header check: "R C" (dimensions) or "N" (entry/row count)
-    if (tokenizedLines[0].length === 1 && intRe.test(tokenizedLines[0][0])) {
-      startLine = 1;
+    // Header check: "R C" (dimensions) or "N" (entry/row count, only when rest.length === N)
+    if (
+      this.inputMode !== 'matrix' &&
+      tokenizedLines.length > 1 &&
+      tokenizedLines[0].length === 1 &&
+      intRe.test(tokenizedLines[0][0])
+    ) {
+      const nCount = parseInt(tokenizedLines[0][0], 10);
+      if (nCount > 0 && tokenizedLines.length - 1 === nCount) {
+        startLine = 1;
+      }
     } else if (
       tokenizedLines.length > 1 &&
       tokenizedLines[0].length === 2 &&
@@ -1447,15 +1523,15 @@ class GridVisualizer {
       const rest = tokenizedLines.slice(1);
 
       // Case A: "R C" followed by R compact char-grid rows of length C
-      if (rest.length === hR && rest.every(t => t.length === 1 && t[0].length === hC)) {
+      if (hR > 0 && hC > 0 && rest.length === hR && rest.every(t => t.length === 1 && t[0].length === hC)) {
         this.applyCompactCharGrid(rest.map(t => t[0]), showToast);
         return;
       }
       // Case B: "R C" followed by R rows of C space-separated tokens
-      if (rest.length === hR && rest.every(t => t.length === hC)) {
+      if (hR > 0 && hC > 0 && rest.length === hR && rest.every(t => t.length === hC)) {
         startLine = 1;
         headerDim = { r: hR, c: hC };
-      } else if (rest.length === hC && rest.every(t => t.length === 3)) {
+      } else if (hC > 0 && rest.length === hC && rest.every(t => t.length === 3)) {
         // Case C: "N M" followed by M coordinate-value triplets
         startLine = 1;
       }
@@ -1469,10 +1545,11 @@ class GridVisualizer {
       return;
     }
 
-    // Detect compact char/binary grid without spaces (e.g. ".#..#" or "S...E")
+    // Detect compact char/binary grid without spaces (e.g. ".#..#" or "S...E" or uniform "0101")
     const isSingleTokenRows = dataRows.every(t => t.length === 1 && t[0].length >= 2);
     const hasGridChars = dataRows.some(t => /[^0-9\-]/.test(t[0]));
-    if (isSingleTokenRows && (hasGridChars || (this.inputMode === 'matrix') || dataRows.length >= 2)) {
+    const isUniformBinary = isSingleTokenRows && dataRows.every(t => /^[01]+$/.test(t[0]) && t[0].length === dataRows[0][0].length);
+    if (isSingleTokenRows && (hasGridChars || isUniformBinary)) {
       if (this.inputMode !== 'coords') {
         this.applyCompactCharGrid(dataRows.map(t => t[0]), showToast);
         return;
@@ -1588,6 +1665,23 @@ class GridVisualizer {
       this.grid.push(row);
     }
 
+    this.startCells = (this.startCells || []).filter(p => p.r >= 0 && p.r < newRows && p.c >= 0 && p.c < newCols);
+    if (this.endCell && (this.endCell.r < 0 || this.endCell.r >= newRows || this.endCell.c < 0 || this.endCell.c >= newCols)) {
+      this.endCell = null;
+    }
+    if (this.submatrix) {
+      const r1 = Math.min(newRows - 1, Math.max(0, this.submatrix.r1));
+      const c1 = Math.min(newCols - 1, Math.max(0, this.submatrix.c1));
+      const r2 = Math.min(newRows - 1, Math.max(0, this.submatrix.r2));
+      const c2 = Math.min(newCols - 1, Math.max(0, this.submatrix.c2));
+      this.submatrix = { r1: Math.min(r1, r2), c1: Math.min(c1, c2), r2: Math.max(r1, r2), c2: Math.max(c1, c2) };
+    }
+    if (this.selectedCells) {
+      this.selectedCells = this.selectedCells.filter(p => p.r >= 0 && p.r < newRows && p.c >= 0 && p.c < newCols);
+      if (this.selectedCells.length === 0) this.selectedCells = null;
+    }
+    this.hoverInfo = null;
+
     this.updateDimBadge();
     this.fitGrid();
     this.saveState();
@@ -1698,11 +1792,15 @@ class GridVisualizer {
     const offset = window.App?.isOneIndexed ? 1 : 0;
     const clampR = (v) => Math.max(0, Math.min(this.rows - 1, v));
     const clampC = (v) => Math.max(0, Math.min(this.cols - 1, v));
+    const parseIdx = (el, fallback = 0) => {
+      const n = parseInt(el.value, 10);
+      return Number.isNaN(n) ? fallback : n;
+    };
 
-    const r1Raw = (parseInt(inpR1.value, 10) || 0) - offset;
-    const c1Raw = (parseInt(inpC1.value, 10) || 0) - offset;
-    const r2Raw = (parseInt(inpR2.value, 10) || 0) - offset;
-    const c2Raw = (parseInt(inpC2.value, 10) || 0) - offset;
+    const r1Raw = parseIdx(inpR1, offset) - offset;
+    const c1Raw = parseIdx(inpC1, offset) - offset;
+    const r2Raw = parseIdx(inpR2, offset) - offset;
+    const c2Raw = parseIdx(inpC2, offset) - offset;
 
     if (this.selectionMode === 'diag' || this.selectionMode === 'antidiag') {
       const r = clampR(r1Raw);
@@ -1816,11 +1914,18 @@ class GridVisualizer {
     return !!(cell && (cell.isWall || cell.val === '#'));
   }
 
+  cleanFloat(v) {
+    if (!Number.isFinite(v)) return v;
+    if (Object.is(v, -0)) return 0;
+    return Number.isInteger(v) ? v : parseFloat(v.toFixed(6));
+  }
+
   computePrefixSums() {
     const P = Array.from({ length: this.rows + 1 }, () => Array(this.cols + 1).fill(0));
     for (let i = 1; i <= this.rows; i++) {
       for (let j = 1; j <= this.cols; j++) {
-        P[i][j] = this.getNumericVal(i - 1, j - 1) + P[i - 1][j] + P[i][j - 1] - P[i - 1][j - 1];
+        const raw = this.getNumericVal(i - 1, j - 1) + P[i - 1][j] + P[i][j - 1] - P[i - 1][j - 1];
+        P[i][j] = this.cleanFloat(raw);
       }
     }
     return P;
@@ -1834,7 +1939,7 @@ class GridVisualizer {
         const top = r > 0 ? this.getNumericVal(r - 1, c) : 0;
         const left = c > 0 ? this.getNumericVal(r, c - 1) : 0;
         const diag = (r > 0 && c > 0) ? this.getNumericVal(r - 1, c - 1) : 0;
-        D[r][c] = cur - top - left + diag;
+        D[r][c] = this.cleanFloat(cur - top - left + diag);
       }
     }
     return D;
@@ -1849,12 +1954,13 @@ class GridVisualizer {
     this.pushUndo();
     for (const { r, c } of coords) {
       const cell = this.grid[r][c];
-      if (!cell.isWall) {
-        const cur = typeof cell.val === 'number' ? cell.val : 0;
-        cell.val = cur + delta;
+      if (!this.isCellWall(r, c)) {
+        const cur = typeof cell.val === 'number' && Number.isFinite(cell.val) ? cell.val : 0;
+        cell.val = this.cleanFloat(cur + delta);
         cell.source = 'manual';
       }
     }
+    this.syncBatchInputFromGrid();
     this.updateSubmatrixStats();
     this.render();
     this.saveState();
@@ -1867,16 +1973,29 @@ class GridVisualizer {
 
     for (let r1 = 0; r1 < this.rows; r1++) {
       const colSum = Array(this.cols).fill(0);
+      const hasWall = Array(this.cols).fill(false);
       for (let r2 = r1; r2 < this.rows; r2++) {
         for (let c = 0; c < this.cols; c++) {
-          colSum[c] += this.isCellWall(r2, c) ? -1e9 : this.getNumericVal(r2, c);
+          if (this.isCellWall(r2, c)) {
+            hasWall[c] = true;
+          } else if (!hasWall[c]) {
+            colSum[c] += this.getNumericVal(r2, c);
+          }
         }
         let curSum = 0;
         let curStart = 0;
+        let active = false;
         for (let c = 0; c < this.cols; c++) {
-          if (curSum + colSum[c] < colSum[c]) {
+          if (hasWall[c]) {
+            curSum = 0;
+            curStart = c + 1;
+            active = false;
+            continue;
+          }
+          if (!active || curSum + colSum[c] < colSum[c]) {
             curSum = colSum[c];
             curStart = c;
+            active = true;
           } else {
             curSum += colSum[c];
           }
@@ -1892,9 +2011,11 @@ class GridVisualizer {
       this.selectedCells = null;
       this.submatrix = bestRect;
       this.updateSubmatrixStats();
-      this.showAlgoResult(`<strong>2D Kadane Max Sum:</strong> ${bestSum}`);
+      this.showAlgoResult(`<strong>2D Kadane Max Sum:</strong> ${this.cleanFloat(bestSum)}`);
       this.render();
       this.saveState();
+    } else {
+      window.App?.showToast('No wall-free submatrix available for 2D Kadane', 'info');
     }
   }
 
@@ -1925,14 +2046,14 @@ class GridVisualizer {
   // ==========================================
 
   gcd(a, b) {
-    a = Math.abs(Math.trunc(a));
-    b = Math.abs(Math.trunc(b));
-    while (b !== 0) {
-      const t = a % b;
-      a = b;
-      b = t;
+    let x = typeof a === 'bigint' ? (a < 0n ? -a : a) : BigInt(Math.trunc(Math.abs(a)));
+    let y = typeof b === 'bigint' ? (b < 0n ? -b : b) : BigInt(Math.trunc(Math.abs(b)));
+    while (y !== 0n) {
+      const t = x % y;
+      x = y;
+      y = t;
     }
-    return a;
+    return x;
   }
 
   updateSubmatrixStats() {
@@ -1976,22 +2097,22 @@ class GridVisualizer {
     let sum = 0;
     let minVal = Infinity;
     let maxVal = -Infinity;
-    let xorVal = 0;
-    let gcdVal = 0;
+    let xorVal = 0n;
+    let gcdVal = 0n;
     let numCount = 0;
     let allInts = true;
 
     for (const { r, c } of coords) {
       const cell = this.grid[r]?.[c];
-      if (!cell || cell.isWall) continue;
+      if (!cell || this.isCellWall(r, c)) continue;
       if (typeof cell.val === 'number' && Number.isFinite(cell.val)) {
         const v = cell.val;
         sum += v;
         minVal = Math.min(minVal, v);
         maxVal = Math.max(maxVal, v);
-        if (Number.isInteger(v)) {
-          xorVal ^= v;
-          gcdVal = this.gcd(gcdVal, v);
+        if (Number.isSafeInteger(v)) {
+          xorVal ^= BigInt(v);
+          gcdVal = this.gcd(gcdVal, BigInt(v));
         } else {
           allInts = false;
         }
@@ -1999,13 +2120,14 @@ class GridVisualizer {
       }
     }
 
+    const cleanSum = this.cleanFloat(sum);
     if (areaText) areaText.textContent = `${coords.length}`;
-    if (sumText) sumText.textContent = numCount > 0 ? (Number.isInteger(sum) ? sum : sum.toFixed(2)) : '0';
+    if (sumText) sumText.textContent = numCount > 0 ? `${cleanSum}` : '0';
     if (minMaxText) minMaxText.textContent = numCount > 0 ? `${minVal} / ${maxVal}` : '-';
     if (avgXorText) {
       if (numCount > 0) {
         const avg = sum / numCount;
-        const avgStr = Number.isInteger(avg) ? `${avg}` : parseFloat(avg.toFixed(3)).toString();
+        const avgStr = Number.isInteger(avg) ? `${avg}` : parseFloat(avg.toFixed(4)).toString();
         avgXorText.textContent = allInts ? `${avgStr} / ${xorVal}` : `${avgStr} / -`;
       } else {
         avgXorText.textContent = '-';
@@ -2088,6 +2210,7 @@ class GridVisualizer {
     this.algoOverlay = null;
     this.hideAlgoResult();
     this.updateDimBadge();
+    this.syncBatchInputFromGrid();
     this.updateSubmatrixStats();
     this.fitGrid();
     this.saveState();
@@ -2128,8 +2251,10 @@ class GridVisualizer {
   }
 
   getEffectiveStartEnd() {
-    const starts = this.startCells.length > 0 ? this.startCells : [{ r: 0, c: 0 }];
-    const target = this.endCell || { r: this.rows - 1, c: this.cols - 1 };
+    const validStarts = (this.startCells || []).filter(p => p.r >= 0 && p.r < this.rows && p.c >= 0 && p.c < this.cols);
+    const starts = validStarts.length > 0 ? validStarts : [{ r: 0, c: 0 }];
+    const hasValidEnd = this.endCell && this.endCell.r >= 0 && this.endCell.r < this.rows && this.endCell.c >= 0 && this.endCell.c < this.cols;
+    const target = hasValidEnd ? this.endCell : { r: this.rows - 1, c: this.cols - 1 };
     return { starts, target };
   }
 
@@ -2748,7 +2873,8 @@ class GridVisualizer {
           selectedCells: it.selectedCells,
           selectedCell: it.selectedCell,
           startCells: it.startCells,
-          endCell: it.endCell
+          endCell: it.endCell,
+          inputText: it.inputText || ''
         })),
         batchInputText: batchInput ? batchInput.value : '',
         showHeatmap: this.showHeatmap,
@@ -2793,6 +2919,7 @@ class GridVisualizer {
           if (si.selectedCell) entry.selectedCell = si.selectedCell;
           if (Array.isArray(si.startCells)) entry.startCells = si.startCells;
           if (si.endCell) entry.endCell = si.endCell;
+          if (typeof si.inputText === 'string') entry.inputText = si.inputText;
           return entry;
         });
         this.nextItemNum = Math.max(
@@ -2817,6 +2944,8 @@ class GridVisualizer {
       if (state.batchInputText !== undefined) {
         const batchInput = document.getElementById('grid-batch-input');
         if (batchInput) batchInput.value = state.batchInputText;
+      } else {
+        this.syncBatchInputFromGrid();
       }
 
       if (typeof state.showHeatmap === 'boolean') this.showHeatmap = state.showHeatmap;
