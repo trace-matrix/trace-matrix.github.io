@@ -282,18 +282,21 @@ class AppCoordinator {
         return;
       }
 
-      // Undo / Redo for Grid Visualizer
-      if ((e.ctrlKey || e.metaKey) && this.currentTab === 'grid') {
-        if (e.key.toLowerCase() === 'z') {
-          e.preventDefault();
-          if (e.shiftKey) window.gridVis?.redo?.();
-          else window.gridVis?.undo?.();
-          return;
-        }
-        if (e.key.toLowerCase() === 'y') {
-          e.preventDefault();
-          window.gridVis?.redo?.();
-          return;
+      // Undo / Redo for Grid & Point Visualizers
+      if (e.ctrlKey || e.metaKey) {
+        const targetVis = this.currentTab === 'grid' ? window.gridVis : (this.currentTab === 'point' ? window.pointVis : null);
+        if (targetVis) {
+          if (e.key.toLowerCase() === 'z') {
+            e.preventDefault();
+            if (e.shiftKey) targetVis.redo?.();
+            else targetVis.undo?.();
+            return;
+          }
+          if (e.key.toLowerCase() === 'y') {
+            e.preventDefault();
+            targetVis.redo?.();
+            return;
+          }
         }
       }
 

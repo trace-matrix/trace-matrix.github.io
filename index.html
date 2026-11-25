@@ -345,18 +345,139 @@
         <div class="panel-inner-layout">
           <!-- Point Controls Sidebar -->
           <aside class="sidebar-panel" id="sidebar-point">
-            <!-- Points Input -->
+            <!-- Points, Segments & Circles Input -->
             <div class="sidebar-section">
               <div class="section-header">
                 <h3>Input</h3>
-                <span class="dim-badge" id="point-count-badge">0 points</span>
+                <div class="header-tools-row">
+                  <span class="dim-badge" id="point-count-badge">0 pts</span>
+                  <button type="button" class="subtle-link-btn" id="btn-pt-copy-io" title="Copy coordinates / C++ Point vector">Copy</button>
+                </div>
               </div>
-              <textarea id="points-raw-input" class="code-textarea" rows="6" placeholder="5&#10;0 0&#10;4 0&#10;4 3&#10;0 3&#10;2 5"></textarea>
-              <div class="btn-group-row mt-2">
-                <button type="button" class="btn btn-primary btn-sm" id="btn-parse-points">Add points</button>
-                <button type="button" class="btn btn-secondary btn-sm" id="btn-clear-points">Clear All</button>
+              <textarea id="points-raw-input" class="code-textarea" rows="5" placeholder="x y  |  x1 y1 x2 y2  |  c x y r&#10;e.g.&#10;0 0&#10;4 0&#10;4 3&#10;0 3"></textarea>
+              <div class="seg-group seg-4 mt-2">
+                <button type="button" class="seg-btn" id="btn-pt-undo" title="Undo (Ctrl+Z)">Undo</button>
+                <button type="button" class="seg-btn" id="btn-pt-redo" title="Redo (Ctrl+Y)">Redo</button>
+                <button type="button" class="seg-btn" id="btn-pt-random" title="Add 8 random integer points">Random</button>
+                <button type="button" class="seg-btn" id="btn-clear-points" title="Clear all points, segments & circles">Clear</button>
               </div>
             </div>
+
+            <!-- Tools, Manual Add & Color -->
+            <div class="sidebar-section">
+              <div class="section-header">
+                <h3>Tools &amp; Color</h3>
+                <button type="button" class="subtle-link-btn" id="btn-pt-clear-colors" title="Reset all point & segment colors">Reset Colors</button>
+              </div>
+
+              <!-- 4-Segment Tool Bar -->
+              <div class="seg-group seg-4" role="group" aria-label="Geometry Tool">
+                <button type="button" class="seg-btn active" data-point-tool="move" title="Drag points, pan, dbl-click to add/connect">Move</button>
+                <button type="button" class="seg-btn" data-point-tool="select" title="Click points/segments to inspect or color">Select</button>
+                <button type="button" class="seg-btn" data-point-tool="segment" title="Click two points to connect segment">Line</button>
+                <button type="button" class="seg-btn" data-point-tool="query" title="Place Query / Pivot Point Q on plane">Query Q</button>
+              </div>
+
+              <!-- Quick Coordinate / Circle Add -->
+              <div class="quick-select-grid" id="pt-quick-add">
+                <div class="qs-field">
+                  <label for="manual-x">x</label>
+                  <input type="number" id="manual-x" class="no-spin" value="0" step="any">
+                </div>
+                <div class="qs-field">
+                  <label for="manual-y">y</label>
+                  <input type="number" id="manual-y" class="no-spin" value="0" step="any">
+                </div>
+                <div class="qs-field">
+                  <label for="manual-r" title="Optional circle radius (0 = Point)">r</label>
+                  <input type="number" id="manual-r" class="no-spin" value="" placeholder="0" step="any">
+                </div>
+                <button type="button" class="btn btn-sm btn-secondary qs-apply-btn" id="btn-add-manual-pt">Add</button>
+              </div>
+
+              <!-- Multi-Color Palette -->
+              <div class="color-palette-bar" aria-label="Geometry Color Swatches">
+                <button type="button" class="color-swatch active" data-pt-color="#38bdf8" style="--swatch-color: #38bdf8;" title="Sky Blue"></button>
+                <button type="button" class="color-swatch" data-pt-color="#10b981" style="--swatch-color: #10b981;" title="Emerald Green"></button>
+                <button type="button" class="color-swatch" data-pt-color="#f59e0b" style="--swatch-color: #f59e0b;" title="Amber Gold"></button>
+                <button type="button" class="color-swatch" data-pt-color="#f43f5e" style="--swatch-color: #f43f5e;" title="Rose Red"></button>
+                <button type="button" class="color-swatch" data-pt-color="#a855f7" style="--swatch-color: #a855f7;" title="Purple"></button>
+                <button type="button" class="color-swatch" data-pt-color="#14b8a6" style="--swatch-color: #14b8a6;" title="Teal"></button>
+                <label class="color-custom-btn" title="Pick custom color">
+                  <input type="color" id="pt-custom-color" value="#38bdf8">
+                  <span aria-hidden="true">+</span>
+                </label>
+                <button type="button" class="color-swatch color-swatch-none" id="btn-pt-uncolor" title="Reset color of selected items">&times;</button>
+              </div>
+            </div>
+
+            <!-- Live Inspector & Options -->
+            <details class="sidebar-section sidebar-accordion" id="section-pt-inspector" open>
+              <summary class="section-header accordion-summary">
+                <h3>Inspector &amp; Options</h3>
+                <span class="accordion-caret">▾</span>
+              </summary>
+              <div id="pt-inspector-box" class="submatrix-stats-box">
+                <div class="stat-line"><span>Selected:</span> <code id="pt-stat-selection">None</code></div>
+                <div class="stat-line"><span id="pt-lbl-m1">Metric 1:</span> <strong id="pt-stat-metric1">-</strong></div>
+                <div class="stat-line"><span id="pt-lbl-m2">Metric 2:</span> <strong id="pt-stat-metric2">-</strong></div>
+                <div class="stat-line"><span id="pt-lbl-m3">Metric 3:</span> <strong id="pt-stat-metric3">-</strong></div>
+              </div>
+              <div class="checkbox-grid-2 mt-2">
+                <label class="custom-checkbox">
+                  <input type="checkbox" id="point-snap-int" checked>
+                  <span>Snap Integer</span>
+                </label>
+                <label class="custom-checkbox">
+                  <input type="checkbox" id="point-show-labels" checked>
+                  <span>Point Labels</span>
+                </label>
+                <label class="custom-checkbox">
+                  <input type="checkbox" id="point-system-toggle">
+                  <span>Y-Down Matrix</span>
+                </label>
+                <label class="custom-checkbox">
+                  <input type="checkbox" id="point-close-poly">
+                  <span>Close Polygon</span>
+                </label>
+              </div>
+            </details>
+
+            <!-- Transforms & CP Geometry Algorithms -->
+            <details class="sidebar-section sidebar-accordion" id="section-pt-algos">
+              <summary class="section-header accordion-summary">
+                <h3>Transforms &amp; Algorithms</h3>
+                <span class="accordion-caret">▾</span>
+              </summary>
+
+              <!-- 4-Segment Coordinate Transform Bar -->
+              <div class="seg-group seg-4">
+                <button type="button" class="seg-btn" id="btn-pt-rot90" title="Rotate all points 90° CCW around (0,0)">Rot 90°</button>
+                <button type="button" class="seg-btn" id="btn-pt-flipx" title="Reflect across X-axis (y → -y)">Flip X</button>
+                <button type="button" class="seg-btn" id="btn-pt-flipy" title="Reflect across Y-axis (x → -x)">Flip Y</button>
+                <button type="button" class="seg-btn" id="btn-pt-center" title="Translate centroid near (0,0)">Center</button>
+              </div>
+
+              <!-- 4x2 Uniform Algorithm Grid (zero orphans) -->
+              <div class="btn-grid-2">
+                <button type="button" class="btn btn-sm btn-secondary" id="btn-convex-hull" title="Strict Convex Hull (H)">Convex Hull</button>
+                <button type="button" class="btn btn-sm btn-secondary" id="btn-collinear-hull" title="Convex Hull keeping collinear boundary pts">Collinear Hull</button>
+                <button type="button" class="btn btn-sm btn-secondary" id="btn-closest-pair" title="Closest Pair L2 / L1 / L∞">Closest Pair</button>
+                <button type="button" class="btn btn-sm btn-secondary" id="btn-mec" title="Smallest Enclosing Circle (Welzl O(N))">Min Circle</button>
+                <button type="button" class="btn btn-sm btn-secondary" id="btn-seg-intersect" title="Find all segment-segment intersections">Seg Intersect</button>
+                <button type="button" class="btn btn-sm btn-secondary" id="btn-point-in-poly" title="Test Query Q (or last pt) inside polygon">Pt in Poly</button>
+                <button type="button" class="btn btn-sm btn-secondary" id="btn-polygon-shoelace" title="Shoelace Area, Orientation & Pick's Theorem">Poly &amp; Pick</button>
+                <button type="button" class="btn btn-sm btn-secondary" id="btn-polar-sort" title="Sort & number points radially around Q or (0,0)">Polar Sort</button>
+              </div>
+
+              <div id="geom-results-box" class="algo-result-box hidden">
+                <div class="section-header" style="margin-bottom:4px;">
+                  <strong id="geom-result-title" class="text-accent">Result</strong>
+                  <button type="button" class="subtle-link-btn" id="btn-close-geom-res">&times;</button>
+                </div>
+                <div id="geom-result-content"></div>
+              </div>
+            </details>
           </aside>
 
           <!-- Collapse Sidebar Toggle Button -->
@@ -378,6 +499,7 @@
               <button type="button" id="point-zoom-out" title="Zoom out (−)">−</button>
               <button type="button" id="point-zoom-fit" title="Fit Points to Screen (F)">Fit</button>
               <button type="button" id="point-zoom-reset" title="Reset View (0)">0,0</button>
+              <button type="button" id="point-btn-esc" class="btn-esc-float" title="Cancel all activities (Esc)">Esc</button>
             </div>
 
             <!-- Floating Status Bar -->
