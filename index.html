@@ -438,12 +438,18 @@
                 <button type="button" class="seg-btn" data-chess-size="8x8">8×8</button>
                 <button type="button" class="seg-btn" data-chess-size="10x10">10×10</button>
               </div>
+              <div class="seg-group seg-4 mt-2">
+                <button type="button" class="seg-btn" id="btn-chess-undo" title="Undo (Ctrl+Z)">Undo</button>
+                <button type="button" class="seg-btn" id="btn-chess-redo" title="Redo (Ctrl+Y)">Redo</button>
+                <button type="button" class="seg-btn" id="btn-chess-rand-walls" title="Generate Random Obstacles">Walls #</button>
+                <button type="button" class="seg-btn" id="btn-clear-chess" title="Clear Board">Clear</button>
+              </div>
             </div>
 
             <!-- Piece Selection & Mode -->
             <div class="sidebar-section">
               <div class="section-header">
-                <h3>Pieces</h3>
+                <h3>Pieces &amp; Tools</h3>
               </div>
               <div class="chess-piece-selector" role="radiogroup" aria-label="Chess Piece">
                 <button type="button" class="piece-btn active" data-piece="N" title="Knight">
@@ -466,32 +472,80 @@
                   <span class="piece-symbol">♚</span>
                   <span class="piece-name">King</span>
                 </button>
-                <button type="button" class="piece-btn" data-piece="erase" title="Erase Piece">
+                <button type="button" class="piece-btn" data-piece="P" title="Pawn (captures diagonally up)">
+                  <span class="piece-symbol">♟</span>
+                  <span class="piece-name">Pawn</span>
+                </button>
+                <button type="button" class="piece-btn" data-piece="#" title="Blocked Square / Wall (drag to paint)">
+                  <span class="piece-symbol">▪</span>
+                  <span class="piece-name">Wall #</span>
+                </button>
+                <button type="button" class="piece-btn" data-piece="select" title="Select / Inspect Square">
+                  <span class="piece-symbol">◎</span>
+                  <span class="piece-name">Select</span>
+                </button>
+                <button type="button" class="piece-btn" data-piece="erase" title="Erase Piece / Wall (drag or right-click)">
                   <span class="piece-symbol">⌫</span>
                   <span class="piece-name">Erase</span>
                 </button>
               </div>
+              <div class="seg-group seg-3 mt-2">
+                <button type="button" class="seg-btn" id="btn-chess-rotate" title="Rotate Board 90° Clockwise">Rot 90°</button>
+                <button type="button" class="seg-btn" id="btn-chess-flip" title="Flip Board Horizontally">Flip H</button>
+                <button type="button" class="seg-btn" id="btn-copy-chess-coords" title="Copy Board Grid &amp; Coordinates">Copy I/O</button>
+              </div>
             </div>
 
-            <!-- Board Algorithms & Overlays -->
-            <div class="sidebar-section">
-              <div class="section-header">
-                <h3>Solvers &amp; Overlay</h3>
-              </div>
-              <div class="btn-vertical-stack">
-                <button type="button" class="btn btn-secondary btn-sm" id="btn-knight-bfs">Knight Shortest Path (BFS)</button>
-                <button type="button" class="btn btn-secondary btn-sm" id="btn-nqueens-solve">N-Queens Solver</button>
-                <button type="button" class="btn btn-secondary btn-sm" id="btn-knights-tour">Knight's Tour</button>
+            <!-- Board Inspector & Overlays -->
+            <details class="sidebar-section sidebar-accordion" open>
+              <summary class="section-header accordion-summary">
+                <h3>Board Inspector</h3>
+                <span class="accordion-caret">▾</span>
+              </summary>
+              <div class="submatrix-stats-box" id="chess-inspector-box">
+                <div class="stat-line">
+                  <span>Pieces / Walls:</span>
+                  <strong id="chess-stat-counts">0 / 0</strong>
+                </div>
+                <div class="stat-line">
+                  <span>Attacked / Safe:</span>
+                  <strong id="chess-stat-attack">0 / 64</strong>
+                </div>
+                <div class="stat-line">
+                  <span>BFS Reachable:</span>
+                  <strong id="chess-stat-bfs">-</strong>
+                </div>
+                <div class="stat-line">
+                  <span>Path Moves:</span>
+                  <strong id="chess-stat-path">-</strong>
+                </div>
               </div>
 
               <div class="mt-2">
-                <label for="chess-overlay-select" class="block-label">Distance / Parity Overlay</label>
+                <label for="chess-overlay-select" class="block-label">Board Overlay</label>
                 <select id="chess-overlay-select" class="select-input">
                   <option value="none">None</option>
+                  <option value="attack">Attacked &amp; Safe Map</option>
                   <option value="manhattan">Manhattan Distance (|Δr| + |Δc|)</option>
                   <option value="chebyshev">Chebyshev Distance (King)</option>
                   <option value="bipartite">Bipartite Parity ((r+c)%2)</option>
                 </select>
+              </div>
+            </details>
+
+            <!-- Board Algorithms & Solvers -->
+            <details class="sidebar-section sidebar-accordion" open>
+              <summary class="section-header accordion-summary">
+                <h3>Algorithms &amp; Solvers</h3>
+                <span class="accordion-caret">▾</span>
+              </summary>
+              <div class="btn-grid-2">
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-knight-bfs" title="Shortest Moves BFS for Active Piece (Enter)">Piece BFS</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-attack-map" title="Toggle Attack Coverage &amp; Safe Squares">Attack Map</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-nqueens-solve" title="N-Queens Backtracking (respects # walls)">N-Queens</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-nrooks-solve" title="Max Non-Attacking Rooks (Bipartite Matching)">N-Rooks</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-knights-tour" title="Knight's Tour avoiding # walls">Knight Tour</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="chess-btn-esc-side" title="Cancel all active solvers &amp; overlays (Esc)">Esc: Cancel</button>
               </div>
 
               <div id="nqueens-browser" class="nqueens-browser-box hidden mt-2">
@@ -505,12 +559,7 @@
                   <button type="button" class="seg-btn" id="btn-nq-play">Auto</button>
                 </div>
               </div>
-
-              <div class="seg-group seg-2 mt-2">
-                <button type="button" class="seg-btn" id="btn-clear-chess">Clear Board</button>
-                <button type="button" class="seg-btn" id="btn-copy-chess-coords">Copy Coords</button>
-              </div>
-            </div>
+            </details>
           </aside>
 
           <!-- Collapse Sidebar Toggle Button -->

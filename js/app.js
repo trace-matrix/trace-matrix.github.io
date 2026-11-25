@@ -282,9 +282,16 @@ class AppCoordinator {
         return;
       }
 
-      // Undo / Redo for Grid & Point Visualizers
+      // Undo / Redo for Grid, Point & Chess Visualizers
       if (e.ctrlKey || e.metaKey) {
-        const targetVis = this.currentTab === 'grid' ? window.gridVis : (this.currentTab === 'point' ? window.pointVis : null);
+        const targetVis =
+          this.currentTab === 'grid'
+            ? window.gridVis
+            : this.currentTab === 'point'
+              ? window.pointVis
+              : this.currentTab === 'chess'
+                ? window.chessVis
+                : null;
         if (targetVis) {
           if (e.key.toLowerCase() === 'z') {
             e.preventDefault();
