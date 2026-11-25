@@ -145,11 +145,12 @@ class ChessVisualizer {
       });
     });
 
-    // Zoom Buttons
+    // Zoom & Esc Buttons
     document.getElementById('chess-zoom-in')?.addEventListener('click', () => this.zoom(1.2));
     document.getElementById('chess-zoom-out')?.addEventListener('click', () => this.zoom(0.8));
     document.getElementById('chess-zoom-fit')?.addEventListener('click', () => this.fitBoard());
     document.getElementById('chess-zoom-reset')?.addEventListener('click', () => this.resetView());
+    document.getElementById('chess-btn-esc')?.addEventListener('click', () => this.cancelAllActivities());
 
     // Algorithms
     document.getElementById('btn-knight-bfs')?.addEventListener('click', () => this.triggerKnightBFS());

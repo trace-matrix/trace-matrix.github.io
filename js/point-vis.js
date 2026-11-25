@@ -624,6 +624,8 @@ class PointVisualizer {
     if (clickedPoint) {
       this.draggedPoint = clickedPoint;
       this.dragStartedSnapshot = false;
+      this.downScreenPos = { x: sx, y: sy };
+      this.dragMoved = false;
     } else {
       const seg = this.findSegmentAt(sx, sy);
       if (seg) {
@@ -632,9 +634,12 @@ class PointVisualizer {
         this.updateInspector();
         this.render();
       } else {
+        this.selectedPoints = [];
+        this.selectedSegment = null;
         this.isPanning = true;
         this.lastMouseX = e.clientX;
         this.lastMouseY = e.clientY;
+        this.updateInspector();
       }
     }
     this.updateCursor();
@@ -662,6 +667,12 @@ class PointVisualizer {
     this.updateStatusPill();
 
     if (this.draggedPoint) {
+      if (!this.dragMoved && this.downScreenPos) {
+        if (Math.hypot(sx - this.downScreenPos.x, sy - this.downScreenPos.y) < 4) {
+          return;
+        }
+        this.dragMoved = true;
+      }
       if (!this.dragStartedSnapshot) {
         this.pushUndo();
         this.dragStartedSnapshot = true;
@@ -683,8 +694,16 @@ class PointVisualizer {
   handleMouseUp(e) {
     let stateChanged = false;
     if (this.draggedPoint) {
-      this.syncInputTextarea();
-      stateChanged = true;
+      if (!this.dragMoved) {
+        this.selectedSegment = null;
+        const idx = this.selectedPoints.indexOf(this.draggedPoint);
+        if (idx >= 0) this.selectedPoints.splice(idx, 1);
+        else this.selectedPoints.push(this.draggedPoint);
+        this.updateInspector();
+      } else {
+        this.syncInputTextarea();
+        stateChanged = true;
+      }
     }
     if (this.connectingPoint && this.draggedPoint && this.draggedPoint === this.connectingPoint) {
       const rect = this.container.getBoundingClientRect();

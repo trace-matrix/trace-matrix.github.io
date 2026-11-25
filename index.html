@@ -46,7 +46,6 @@
         </div>
         <div class="brand-text">
           <span class="brand-title">TraceMatrix</span>
-          <span class="brand-badge">CP VISUALIZER</span>
         </div>
       </div>
 
@@ -128,10 +127,9 @@
                 </div>
                 <button type="button" class="btn btn-sm btn-primary" id="btn-resize-grid">Apply</button>
               </div>
-              <div class="seg-group seg-4 mt-2">
+              <div class="seg-group seg-3 mt-2">
                 <button type="button" class="seg-btn" id="btn-grid-undo" title="Undo (Ctrl+Z)">Undo</button>
                 <button type="button" class="seg-btn" id="btn-grid-redo" title="Redo (Ctrl+Y)">Redo</button>
-                <button type="button" class="seg-btn" id="btn-grid-random" title="Fill with random weights (0-9)">Random</button>
                 <button type="button" class="seg-btn" id="btn-grid-clear-vals" title="Reset all cell values to 0">Clear</button>
               </div>
             </div>
@@ -148,22 +146,14 @@
                   <button type="button" class="subtle-link-btn" id="btn-grid-copy-io" title="Copy R C & Grid input">Copy</button>
                 </div>
               </div>
-              <textarea id="grid-batch-input" class="code-textarea" rows="4" placeholder="x y val OR 2D matrix / .# grid:&#10;0 0 5&#10;1 2 10&#10;--- or ---&#10;.#..#&#10;S...E"></textarea>
+              <textarea id="grid-batch-input" class="code-textarea" rows="4" placeholder="x1 y1 val1&#10;x2 y2 val2&#10;&#10;e.g.&#10;0 0 5&#10;1 2 10"></textarea>
             </div>
 
-            <!-- Selection, Tools & Cell Coloring -->
+            <!-- Selection & Cell Coloring -->
             <div class="sidebar-section" id="section-grid-color">
               <div class="section-header">
                 <h3>Selection &amp; Color</h3>
                 <button type="button" class="subtle-link-btn" id="btn-clear-all-colors" title="Clear all custom cell colors">Clear Colors</button>
-              </div>
-
-              <!-- Canvas Interaction Tool -->
-              <div class="seg-group seg-4" role="group" aria-label="Grid Interaction Tool">
-                <button type="button" class="seg-btn active" data-grid-tool="select" title="Select cells/regions">Select</button>
-                <button type="button" class="seg-btn" data-grid-tool="wall" title="Click/drag to toggle walls (#)">Wall #</button>
-                <button type="button" class="seg-btn" data-grid-tool="start" title="Click to toggle Start (S)">Start S</button>
-                <button type="button" class="seg-btn" data-grid-tool="end" title="Click to toggle Target (T)">End T</button>
               </div>
 
               <!-- Selection Mode Segmented Bar -->
@@ -221,12 +211,11 @@
               </div>
             </div>
 
-            <!-- 2D Prefix, Range Ops & Aggregates -->
-            <details class="sidebar-section sidebar-accordion" id="section-prefix-sums" open>
-              <summary class="section-header accordion-summary">
-                <h3>Inspector &amp; Range Ops</h3>
-                <span class="accordion-caret">▾</span>
-              </summary>
+            <!-- 2D Prefix Calculator -->
+            <div class="sidebar-section" id="section-prefix-sums">
+              <div class="section-header">
+                <h3>2D Prefix Calculator</h3>
+              </div>
               <div class="prefix-sums-container">
                 <div id="submatrix-stats" class="submatrix-stats-box">
                   <div class="stat-line"><span>Range:</span> <code id="sub-range-text">None selected</code></div>
@@ -235,23 +224,10 @@
                   <div class="stat-line"><span>Avg / XOR:</span> <strong id="sub-avgxor-text">-</strong></div>
                   <div class="stat-line"><span>GCD:</span> <strong id="sub-gcd-text">-</strong></div>
                 </div>
-
-                <!-- 2D Range Add & 2D Kadane -->
-                <div class="range-ops-row mt-2">
-                  <input type="number" id="grid-range-delta" class="compact-num-input no-spin" value="1" title="Range update delta">
-                  <button type="button" class="btn btn-sm btn-secondary" id="btn-range-add" title="Add delta to selected cells">+Add</button>
-                  <button type="button" class="btn btn-sm btn-secondary" id="btn-range-sub" title="Subtract delta from selected cells">−Sub</button>
-                  <button type="button" class="btn btn-sm btn-secondary flex-1" id="btn-kadane-2d" title="Find Maximum Submatrix Sum (2D Kadane)">MaxSum</button>
-                </div>
-
-                <div class="checkbox-grid-2 mt-2">
+                <div class="checkbox-grid mt-2">
                   <label class="custom-checkbox">
                     <input type="checkbox" id="toggle-prefix-overlay">
-                    <span>Prefix P[i][j]</span>
-                  </label>
-                  <label class="custom-checkbox">
-                    <input type="checkbox" id="toggle-diff-overlay">
-                    <span>Diff D[i][j]</span>
+                    <span>Show Prefix Table</span>
                   </label>
                   <label class="custom-checkbox">
                     <input type="checkbox" id="toggle-heatmap">
@@ -259,49 +235,11 @@
                   </label>
                   <label class="custom-checkbox">
                     <input type="checkbox" id="toggle-subscripts">
-                    <span>(r,c) Index</span>
+                    <span>(r,c) Subscripts</span>
                   </label>
                 </div>
               </div>
-            </details>
-
-            <!-- Matrix Transforms & CP Grid Algorithms -->
-            <details class="sidebar-section sidebar-accordion" id="section-grid-algos">
-              <summary class="section-header accordion-summary">
-                <h3>Transforms &amp; Algorithms</h3>
-                <span class="accordion-caret">▾</span>
-              </summary>
-
-              <!-- Transforms -->
-              <div class="seg-group seg-4">
-                <button type="button" class="seg-btn" id="btn-grid-transpose" title="Transpose Matrix (Swap R & C)">Transpose</button>
-                <button type="button" class="seg-btn" id="btn-grid-rot-cw" title="Rotate 90° Clockwise">Rot 90°</button>
-                <button type="button" class="seg-btn" id="btn-grid-flip-h" title="Flip Horizontally">Flip H</button>
-                <button type="button" class="seg-btn" id="btn-grid-flip-v" title="Flip Vertically">Flip V</button>
-              </div>
-
-              <!-- Direction Header -->
-              <div class="algo-controls-row">
-                <span class="mini-label">Graph &amp; DP</span>
-                <div class="mini-pills-row" role="group" aria-label="Grid Neighbor Directions">
-                  <button type="button" class="mini-pill active" data-grid-dir="4">4-Dir</button>
-                  <button type="button" class="mini-pill" data-grid-dir="8">8-Dir</button>
-                </div>
-              </div>
-
-              <!-- Graph & DP Algorithm Triggers (Clean 3x2 grid, zero orphans) -->
-              <div class="btn-grid-2">
-                <button type="button" class="btn btn-sm btn-secondary" id="btn-grid-bfs" title="BFS Shortest Path from Start S to Target T">BFS Path</button>
-                <button type="button" class="btn btn-sm btn-secondary" id="btn-grid-dijkstra" title="Minimum Weight Cost Path S → T">Dijkstra</button>
-                <button type="button" class="btn btn-sm btn-secondary" id="btn-grid-components" title="Color Connected Non-Wall Components">Components</button>
-                <button type="button" class="btn btn-sm btn-secondary" id="btn-grid-dp-min" title="Min Path Sum DP (0,0 → R-1,C-1)">DP MinSum</button>
-                <button type="button" class="btn btn-sm btn-secondary" id="btn-grid-dp-ways" title="Number of Grid Paths mod 10^9+7">DP Ways</button>
-                <button type="button" class="btn btn-sm btn-secondary" id="btn-overlay-spiral" title="Visualize Spiral Traversal Order">Spiral Order</button>
-              </div>
-
-              <!-- Algorithm Result Output -->
-              <div id="grid-algo-result" class="algo-result-box hidden"></div>
-            </details>
+            </div>
           </aside>
 
           <!-- Collapse Sidebar Toggle Button -->
@@ -351,34 +289,24 @@
                 <h3>Input</h3>
                 <div class="header-tools-row">
                   <span class="dim-badge" id="point-count-badge">0 pts</span>
-                  <button type="button" class="subtle-link-btn" id="btn-pt-copy-io" title="Copy coordinates / C++ Point vector">Copy</button>
+                  <button type="button" class="subtle-link-btn" id="btn-pt-copy-io" title="Copy C++ Point vector">Copy</button>
                 </div>
               </div>
-              <textarea id="points-raw-input" class="code-textarea" rows="5" placeholder="x y  |  x1 y1 x2 y2  |  c x y r&#10;e.g.&#10;0 0&#10;4 0&#10;4 3&#10;0 3"></textarea>
-              <div class="seg-group seg-4 mt-2">
+              <textarea id="points-raw-input" class="code-textarea" rows="6" placeholder="x y  |  x1 y1 x2 y2  |  c x y r&#10;e.g.&#10;0 0&#10;4 0&#10;4 3&#10;0 3"></textarea>
+              <div class="seg-group seg-3 mt-2">
                 <button type="button" class="seg-btn" id="btn-pt-undo" title="Undo (Ctrl+Z)">Undo</button>
                 <button type="button" class="seg-btn" id="btn-pt-redo" title="Redo (Ctrl+Y)">Redo</button>
-                <button type="button" class="seg-btn" id="btn-pt-random" title="Add 8 random integer points">Random</button>
                 <button type="button" class="seg-btn" id="btn-clear-points" title="Clear all points, segments & circles">Clear</button>
               </div>
             </div>
 
-            <!-- Tools, Manual Add & Color -->
+            <!-- Quick Add & Selection Color -->
             <div class="sidebar-section">
               <div class="section-header">
-                <h3>Tools &amp; Color</h3>
-                <button type="button" class="subtle-link-btn" id="btn-pt-clear-colors" title="Reset all point & segment colors">Reset Colors</button>
+                <h3>Point &amp; Color</h3>
+                <button type="button" class="subtle-link-btn" id="btn-pt-clear-colors" title="Reset all point & segment colors">Clear Colors</button>
               </div>
 
-              <!-- 4-Segment Tool Bar -->
-              <div class="seg-group seg-4" role="group" aria-label="Geometry Tool">
-                <button type="button" class="seg-btn active" data-point-tool="move" title="Drag points, pan, dbl-click to add/connect">Move</button>
-                <button type="button" class="seg-btn" data-point-tool="select" title="Click points/segments to inspect or color">Select</button>
-                <button type="button" class="seg-btn" data-point-tool="segment" title="Click two points to connect segment">Line</button>
-                <button type="button" class="seg-btn" data-point-tool="query" title="Place Query / Pivot Point Q on plane">Query Q</button>
-              </div>
-
-              <!-- Quick Coordinate / Circle Add -->
               <div class="quick-select-grid" id="pt-quick-add">
                 <div class="qs-field">
                   <label for="manual-x">x</label>
@@ -388,14 +316,9 @@
                   <label for="manual-y">y</label>
                   <input type="number" id="manual-y" class="no-spin" value="0" step="any">
                 </div>
-                <div class="qs-field">
-                  <label for="manual-r" title="Optional circle radius (0 = Point)">r</label>
-                  <input type="number" id="manual-r" class="no-spin" value="" placeholder="0" step="any">
-                </div>
-                <button type="button" class="btn btn-sm btn-secondary qs-apply-btn" id="btn-add-manual-pt">Add</button>
+                <button type="button" class="btn btn-sm btn-primary qs-apply-btn" id="btn-add-manual-pt">Add Point</button>
               </div>
 
-              <!-- Multi-Color Palette -->
               <div class="color-palette-bar" aria-label="Geometry Color Swatches">
                 <button type="button" class="color-swatch active" data-pt-color="#38bdf8" style="--swatch-color: #38bdf8;" title="Sky Blue"></button>
                 <button type="button" class="color-swatch" data-pt-color="#10b981" style="--swatch-color: #10b981;" title="Emerald Green"></button>
@@ -411,12 +334,11 @@
               </div>
             </div>
 
-            <!-- Live Inspector & Options -->
-            <details class="sidebar-section sidebar-accordion" id="section-pt-inspector" open>
-              <summary class="section-header accordion-summary">
-                <h3>Inspector &amp; Options</h3>
-                <span class="accordion-caret">▾</span>
-              </summary>
+            <!-- Live Inspector & View Options -->
+            <div class="sidebar-section" id="section-pt-inspector">
+              <div class="section-header">
+                <h3>Inspector</h3>
+              </div>
               <div id="pt-inspector-box" class="submatrix-stats-box">
                 <div class="stat-line"><span>Selected:</span> <code id="pt-stat-selection">None</code></div>
                 <div class="stat-line"><span id="pt-lbl-m1">Metric 1:</span> <strong id="pt-stat-metric1">-</strong></div>
@@ -441,43 +363,7 @@
                   <span>Close Polygon</span>
                 </label>
               </div>
-            </details>
-
-            <!-- Transforms & CP Geometry Algorithms -->
-            <details class="sidebar-section sidebar-accordion" id="section-pt-algos">
-              <summary class="section-header accordion-summary">
-                <h3>Transforms &amp; Algorithms</h3>
-                <span class="accordion-caret">▾</span>
-              </summary>
-
-              <!-- 4-Segment Coordinate Transform Bar -->
-              <div class="seg-group seg-4">
-                <button type="button" class="seg-btn" id="btn-pt-rot90" title="Rotate all points 90° CCW around (0,0)">Rot 90°</button>
-                <button type="button" class="seg-btn" id="btn-pt-flipx" title="Reflect across X-axis (y → -y)">Flip X</button>
-                <button type="button" class="seg-btn" id="btn-pt-flipy" title="Reflect across Y-axis (x → -x)">Flip Y</button>
-                <button type="button" class="seg-btn" id="btn-pt-center" title="Translate centroid near (0,0)">Center</button>
-              </div>
-
-              <!-- 4x2 Uniform Algorithm Grid (zero orphans) -->
-              <div class="btn-grid-2">
-                <button type="button" class="btn btn-sm btn-secondary" id="btn-convex-hull" title="Strict Convex Hull (H)">Convex Hull</button>
-                <button type="button" class="btn btn-sm btn-secondary" id="btn-collinear-hull" title="Convex Hull keeping collinear boundary pts">Collinear Hull</button>
-                <button type="button" class="btn btn-sm btn-secondary" id="btn-closest-pair" title="Closest Pair L2 / L1 / L∞">Closest Pair</button>
-                <button type="button" class="btn btn-sm btn-secondary" id="btn-mec" title="Smallest Enclosing Circle (Welzl O(N))">Min Circle</button>
-                <button type="button" class="btn btn-sm btn-secondary" id="btn-seg-intersect" title="Find all segment-segment intersections">Seg Intersect</button>
-                <button type="button" class="btn btn-sm btn-secondary" id="btn-point-in-poly" title="Test Query Q (or last pt) inside polygon">Pt in Poly</button>
-                <button type="button" class="btn btn-sm btn-secondary" id="btn-polygon-shoelace" title="Shoelace Area, Orientation & Pick's Theorem">Poly &amp; Pick</button>
-                <button type="button" class="btn btn-sm btn-secondary" id="btn-polar-sort" title="Sort & number points radially around Q or (0,0)">Polar Sort</button>
-              </div>
-
-              <div id="geom-results-box" class="algo-result-box hidden">
-                <div class="section-header" style="margin-bottom:4px;">
-                  <strong id="geom-result-title" class="text-accent">Result</strong>
-                  <button type="button" class="subtle-link-btn" id="btn-close-geom-res">&times;</button>
-                </div>
-                <div id="geom-result-content"></div>
-              </div>
-            </details>
+            </div>
           </aside>
 
           <!-- Collapse Sidebar Toggle Button -->
@@ -523,111 +409,97 @@
           <aside class="sidebar-panel" id="sidebar-chess">
             <div class="sidebar-section">
               <div class="section-header">
-                <h3>Chessboard Dimensions</h3>
+                <h3>Board Dimensions</h3>
                 <span class="dim-badge" id="chess-dim-badge">8 × 8</span>
               </div>
               <div class="dim-inputs-row">
                 <div class="input-group">
                   <label for="chess-rows">Rows (N)</label>
-                  <input type="number" id="chess-rows" min="1" max="30" value="8">
+                  <input type="number" id="chess-rows" class="no-spin" min="1" max="30" value="8">
                 </div>
                 <div class="input-group">
                   <label for="chess-cols">Cols (M)</label>
-                  <input type="number" id="chess-cols" min="1" max="30" value="8">
+                  <input type="number" id="chess-cols" class="no-spin" min="1" max="30" value="8">
                 </div>
                 <button type="button" class="btn btn-sm btn-primary" id="btn-resize-chess">Apply</button>
               </div>
-              <div class="presets-row mt-2">
-                <button type="button" class="chip-btn" data-chess-size="8x8">8 × 8</button>
-                <button type="button" class="chip-btn" data-chess-size="4x4">4 × 4</button>
-                <button type="button" class="chip-btn" data-chess-size="5x5">5 × 5</button>
-                <button type="button" class="chip-btn" data-chess-size="10x10">10 × 10</button>
+              <div class="seg-group seg-4 mt-2">
+                <button type="button" class="seg-btn" data-chess-size="4x4">4×4</button>
+                <button type="button" class="seg-btn" data-chess-size="5x5">5×5</button>
+                <button type="button" class="seg-btn" data-chess-size="8x8">8×8</button>
+                <button type="button" class="seg-btn" data-chess-size="10x10">10×10</button>
               </div>
             </div>
 
             <!-- Piece Selection & Mode -->
             <div class="sidebar-section">
               <div class="section-header">
-                <h3>Select Piece / Tool</h3>
+                <h3>Pieces</h3>
               </div>
               <div class="chess-piece-selector" role="radiogroup" aria-label="Chess Piece">
-                <button type="button" class="piece-btn active" data-piece="N" title="Knight ♞ (Reachability / BFS)">
+                <button type="button" class="piece-btn active" data-piece="N" title="Knight">
                   <span class="piece-symbol">♞</span>
                   <span class="piece-name">Knight</span>
                 </button>
-                <button type="button" class="piece-btn" data-piece="Q" title="Queen ♛ (N-Queens / 8 Directions)">
+                <button type="button" class="piece-btn" data-piece="Q" title="Queen">
                   <span class="piece-symbol">♛</span>
                   <span class="piece-name">Queen</span>
                 </button>
-                <button type="button" class="piece-btn" data-piece="R" title="Rook ♜ (Row & Col Rays)">
+                <button type="button" class="piece-btn" data-piece="R" title="Rook">
                   <span class="piece-symbol">♜</span>
                   <span class="piece-name">Rook</span>
                 </button>
-                <button type="button" class="piece-btn" data-piece="B" title="Bishop ♝ (Diagonals)">
+                <button type="button" class="piece-btn" data-piece="B" title="Bishop">
                   <span class="piece-symbol">♝</span>
                   <span class="piece-name">Bishop</span>
                 </button>
-                <button type="button" class="piece-btn" data-piece="K" title="King ♚ (Chebyshev Distance)">
+                <button type="button" class="piece-btn" data-piece="K" title="King">
                   <span class="piece-symbol">♚</span>
                   <span class="piece-name">King</span>
                 </button>
-                <button type="button" class="piece-btn" data-piece="erase" title="Erase Piece / Clear Cell">
+                <button type="button" class="piece-btn" data-piece="erase" title="Erase Piece">
                   <span class="piece-symbol">⌫</span>
                   <span class="piece-name">Erase</span>
                 </button>
               </div>
             </div>
 
-            <!-- CP Problem Solvers -->
+            <!-- Board Algorithms & Overlays -->
             <div class="sidebar-section">
               <div class="section-header">
-                <h3>CP Chess Algorithms</h3>
+                <h3>Solvers &amp; Overlay</h3>
               </div>
               <div class="btn-vertical-stack">
-                <button type="button" class="btn btn-accent btn-sm" id="btn-knight-bfs" title="Compute Knight minimum moves to every cell">
-                  ♞ Knight Shortest Path &amp; Reachability (BFS)
-                </button>
-                <button type="button" class="btn btn-secondary btn-sm" id="btn-nqueens-solve" title="Solve N-Queens Backtracking">
-                  ♛ N-Queens Solver &amp; Visualizer
-                </button>
-                <button type="button" class="btn btn-secondary btn-sm" id="btn-knights-tour" title="Warnsdorff's Knight's Tour">
-                  ♞ Knight's Tour (Warnsdorff)
-                </button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-knight-bfs">Knight Shortest Path (BFS)</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-nqueens-solve">N-Queens Solver</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-knights-tour">Knight's Tour</button>
               </div>
 
-              <!-- Distance Overlays -->
               <div class="mt-2">
-                <label for="chess-overlay-select" class="block-label">Square Overlay / Heatmap:</label>
+                <label for="chess-overlay-select" class="block-label">Distance / Parity Overlay</label>
                 <select id="chess-overlay-select" class="select-input">
-                  <option value="none">None (Tournament Board)</option>
+                  <option value="none">None</option>
                   <option value="manhattan">Manhattan Distance (|Δr| + |Δc|)</option>
-                  <option value="chebyshev">Chebyshev Distance (King moves)</option>
-                  <option value="bipartite">Bipartite / Parity ((r+c)%2)</option>
+                  <option value="chebyshev">Chebyshev Distance (King)</option>
+                  <option value="bipartite">Bipartite Parity ((r+c)%2)</option>
                 </select>
               </div>
 
-              <!-- N-Queens Solution Browser -->
               <div id="nqueens-browser" class="nqueens-browser-box hidden mt-2">
                 <div class="section-header">
                   <h4>N-Queens Solutions</h4>
                   <span id="nqueens-solution-counter">1 / 92</span>
                 </div>
-                <div class="btn-group-row mt-2">
-                  <button type="button" class="btn btn-secondary btn-sm" id="btn-nq-prev">◀ Prev</button>
-                  <button type="button" class="btn btn-secondary btn-sm" id="btn-nq-next">Next ▶</button>
-                  <button type="button" class="btn btn-secondary btn-sm" id="btn-nq-play">▶ Auto</button>
+                <div class="seg-group seg-3 mt-2">
+                  <button type="button" class="seg-btn" id="btn-nq-prev">Prev</button>
+                  <button type="button" class="seg-btn" id="btn-nq-next">Next</button>
+                  <button type="button" class="seg-btn" id="btn-nq-play">Auto</button>
                 </div>
               </div>
-            </div>
 
-            <!-- Reset & Export -->
-            <div class="sidebar-section">
-              <div class="section-header">
-                <h3>Board Actions</h3>
-              </div>
-              <div class="btn-group-row">
-                <button type="button" class="btn btn-secondary btn-sm" id="btn-clear-chess">Clear Board</button>
-                <button type="button" class="btn btn-secondary btn-sm" id="btn-copy-chess-coords">Copy Coords</button>
+              <div class="seg-group seg-2 mt-2">
+                <button type="button" class="seg-btn" id="btn-clear-chess">Clear Board</button>
+                <button type="button" class="seg-btn" id="btn-copy-chess-coords">Copy Coords</button>
               </div>
             </div>
           </aside>
@@ -651,6 +523,7 @@
               <button type="button" id="chess-zoom-out" title="Zoom out (−)">−</button>
               <button type="button" id="chess-zoom-fit" title="Fit Board (F)">Fit</button>
               <button type="button" id="chess-zoom-reset" title="Reset View (0)">1:1</button>
+              <button type="button" id="chess-btn-esc" class="btn-esc-float" title="Cancel all activities (Esc)">Esc</button>
             </div>
 
             <!-- Floating Status Bar -->
