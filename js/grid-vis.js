@@ -2396,9 +2396,13 @@ class GridVisualizer {
       if (state.submatrix) this.submatrix = state.submatrix;
       if (Array.isArray(state.selectedCells)) this.selectedCells = state.selectedCells;
       if (state.selectedCell) this.selectedCell = state.selectedCell;
-      if (state.selectionMode) this.selectionMode = state.selectionMode;
+      if (state.selectionMode) {
+        this.selectionMode = state.selectionMode === 'subarray' ? 'submatrix' : state.selectionMode;
+      }
       if (state.gridTool) this.gridTool = state.gridTool;
-      if (state.inputMode) this.inputMode = state.inputMode;
+      if (state.inputMode) {
+        this.inputMode = state.inputMode === 'matrix' ? 'matrix' : 'auto';
+      }
       if (state.dirMode === 4 || state.dirMode === 8) this.dirMode = state.dirMode;
       if (state.activeColor) this.activeColor = state.activeColor;
       if (typeof state.autoPaint === 'boolean') this.autoPaint = state.autoPaint;

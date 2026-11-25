@@ -120,27 +120,19 @@
               <div class="dim-inputs-row">
                 <div class="input-group">
                   <label for="grid-rows">Rows (R)</label>
-                  <input type="number" id="grid-rows" min="1" max="100" value="10">
+                  <input type="number" id="grid-rows" class="no-spin" min="1" max="100" value="10">
                 </div>
                 <div class="input-group">
                   <label for="grid-cols">Cols (C)</label>
-                  <input type="number" id="grid-cols" min="1" max="100" value="10">
+                  <input type="number" id="grid-cols" class="no-spin" min="1" max="100" value="10">
                 </div>
                 <button type="button" class="btn btn-sm btn-primary" id="btn-resize-grid">Apply</button>
               </div>
-              <div class="presets-row mt-2">
-                <button type="button" class="chip-btn" data-grid-size="5x5">5×5</button>
-                <button type="button" class="chip-btn" data-grid-size="8x8">8×8</button>
-                <button type="button" class="chip-btn" data-grid-size="10x10">10×10</button>
-                <button type="button" class="chip-btn" id="btn-grid-undo" title="Undo (Ctrl+Z)">↶ Undo</button>
-                <button type="button" class="chip-btn" id="btn-grid-redo" title="Redo (Ctrl+Y)">↷ Redo</button>
-              </div>
-              <div class="presets-row">
-                <button type="button" class="chip-btn" id="btn-grid-clear-vals" title="Reset all cell values to 0">Clear (0)</button>
-                <button type="button" class="chip-btn" id="btn-grid-random" title="Fill with random weights (0-9)">Random</button>
-                <button type="button" class="chip-btn" id="btn-grid-maze" title="Generate random 0/1 obstacle maze">Maze</button>
-                <button type="button" class="chip-btn" id="btn-grid-copy-io" title="Copy R C & Grid input">Copy I/O</button>
-                <button type="button" class="chip-btn" id="btn-grid-copy-cpp" title="Copy C++ vector">C++</button>
+              <div class="seg-group seg-4 mt-2">
+                <button type="button" class="seg-btn" id="btn-grid-undo" title="Undo (Ctrl+Z)">Undo</button>
+                <button type="button" class="seg-btn" id="btn-grid-redo" title="Redo (Ctrl+Y)">Redo</button>
+                <button type="button" class="seg-btn" id="btn-grid-random" title="Fill with random weights (0-9)">Random</button>
+                <button type="button" class="seg-btn" id="btn-grid-clear-vals" title="Reset all cell values to 0">Clear</button>
               </div>
             </div>
 
@@ -148,60 +140,61 @@
             <div class="sidebar-section" id="section-batch-paste">
               <div class="section-header">
                 <h3>Input</h3>
-                <div class="mini-pills-row" role="group" aria-label="Input Parse Mode">
-                  <button type="button" class="mini-pill active" data-input-mode="auto" title="Auto-detect x y val, 2D matrix, or #/. char grid">Auto</button>
-                  <button type="button" class="mini-pill" data-input-mode="coords" title="Force x y val lines">x y v</button>
-                  <button type="button" class="mini-pill" data-input-mode="matrix" title="Force 2D Matrix / char grid">Matrix</button>
+                <div class="header-tools-row">
+                  <div class="mini-pills-row" role="group" aria-label="Input Parse Mode">
+                    <button type="button" class="mini-pill active" data-input-mode="auto" title="Auto-detect x y val, 2D matrix, or #/. char grid">Auto</button>
+                    <button type="button" class="mini-pill" data-input-mode="matrix" title="Parse as 2D Matrix / char grid">Matrix</button>
+                  </div>
+                  <button type="button" class="subtle-link-btn" id="btn-grid-copy-io" title="Copy R C & Grid input">Copy</button>
                 </div>
               </div>
-              <textarea id="grid-batch-input" class="code-textarea" rows="5" placeholder="x y val OR 2D matrix / .# grid:&#10;0 0 5&#10;1 2 10&#10;--- or ---&#10;.#..#&#10;S...E"></textarea>
+              <textarea id="grid-batch-input" class="code-textarea" rows="4" placeholder="x y val OR 2D matrix / .# grid:&#10;0 0 5&#10;1 2 10&#10;--- or ---&#10;.#..#&#10;S...E"></textarea>
             </div>
 
-            <!-- Selection, Canvas Brush & Cell Coloring -->
+            <!-- Selection, Tools & Cell Coloring -->
             <div class="sidebar-section" id="section-grid-color">
               <div class="section-header">
-                <h3>Select, Tools &amp; Color</h3>
-                <button type="button" class="chip-btn" id="btn-clear-all-colors" title="Clear all cell colors">Clear Colors</button>
+                <h3>Selection &amp; Color</h3>
+                <button type="button" class="subtle-link-btn" id="btn-clear-all-colors" title="Clear all custom cell colors">Clear Colors</button>
               </div>
 
               <!-- Canvas Interaction Tool -->
-              <div class="tool-pills-4" role="group" aria-label="Grid Interaction Tool">
-                <button type="button" class="mode-pill active" data-grid-tool="select" title="Select cells/regions">Select</button>
-                <button type="button" class="mode-pill" data-grid-tool="wall" title="Click/drag to toggle walls (#)">Wall #</button>
-                <button type="button" class="mode-pill" data-grid-tool="start" title="Click to toggle Start (S)">Start S</button>
-                <button type="button" class="mode-pill" data-grid-tool="end" title="Click to toggle Target (T)">End T</button>
+              <div class="seg-group seg-4" role="group" aria-label="Grid Interaction Tool">
+                <button type="button" class="seg-btn active" data-grid-tool="select" title="Select cells/regions">Select</button>
+                <button type="button" class="seg-btn" data-grid-tool="wall" title="Click/drag to toggle walls (#)">Wall #</button>
+                <button type="button" class="seg-btn" data-grid-tool="start" title="Click to toggle Start (S)">Start S</button>
+                <button type="button" class="seg-btn" data-grid-tool="end" title="Click to toggle Target (T)">End T</button>
               </div>
 
-              <!-- Selection Mode Pills -->
-              <div class="mode-pills-7" role="group" aria-label="Selection Target Mode">
-                <button type="button" class="mode-pill active" data-sel-mode="submatrix" title="Select any 2D rectangle">Rect</button>
-                <button type="button" class="mode-pill" data-sel-mode="cell" title="Select a single cell">Cell</button>
-                <button type="button" class="mode-pill" data-sel-mode="subarray" title="Select a 1D row/col slice">Subarr</button>
-                <button type="button" class="mode-pill" data-sel-mode="row" title="Select entire row(s)">Row</button>
-                <button type="button" class="mode-pill" data-sel-mode="col" title="Select entire col(s)">Col</button>
-                <button type="button" class="mode-pill" data-sel-mode="diag" title="Select main diagonal (r - c)">Diag</button>
-                <button type="button" class="mode-pill" data-sel-mode="antidiag" title="Select anti-diagonal (r + c)">Anti</button>
+              <!-- Selection Mode Segmented Bar -->
+              <div class="seg-group seg-6" role="group" aria-label="Selection Target Mode">
+                <button type="button" class="seg-btn active" data-sel-mode="submatrix" title="Select any 2D rectangle or subarray">Rect</button>
+                <button type="button" class="seg-btn" data-sel-mode="cell" title="Select a single cell">Cell</button>
+                <button type="button" class="seg-btn" data-sel-mode="row" title="Select entire row(s)">Row</button>
+                <button type="button" class="seg-btn" data-sel-mode="col" title="Select entire col(s)">Col</button>
+                <button type="button" class="seg-btn" data-sel-mode="diag" title="Select main diagonal (r - c)">Diag</button>
+                <button type="button" class="seg-btn" data-sel-mode="antidiag" title="Select anti-diagonal (r + c)">Anti</button>
               </div>
 
               <!-- Quick Range / Index Select -->
               <div class="quick-select-grid" id="grid-quick-select">
                 <div class="qs-field" data-qs="r1">
                   <label for="qs-r1" id="lbl-qs-r1">r1</label>
-                  <input type="number" id="qs-r1" value="0">
+                  <input type="number" id="qs-r1" class="no-spin" value="0">
                 </div>
                 <div class="qs-field" data-qs="c1">
                   <label for="qs-c1" id="lbl-qs-c1">c1</label>
-                  <input type="number" id="qs-c1" value="0">
+                  <input type="number" id="qs-c1" class="no-spin" value="0">
                 </div>
                 <div class="qs-field" data-qs="r2">
                   <label for="qs-r2" id="lbl-qs-r2">r2</label>
-                  <input type="number" id="qs-r2" value="0">
+                  <input type="number" id="qs-r2" class="no-spin" value="0">
                 </div>
                 <div class="qs-field" data-qs="c2">
                   <label for="qs-c2" id="lbl-qs-c2">c2</label>
-                  <input type="number" id="qs-c2" value="0">
+                  <input type="number" id="qs-c2" class="no-spin" value="0">
                 </div>
-                <button type="button" class="btn btn-sm btn-secondary qs-apply-btn" id="btn-qs-select">Select</button>
+                <button type="button" class="btn btn-sm btn-secondary qs-apply-btn" id="btn-qs-select">Go</button>
               </div>
 
               <!-- Multi-Color Palette -->
@@ -211,9 +204,11 @@
                 <button type="button" class="color-swatch" data-color="#f59e0b" style="--swatch-color: #f59e0b;" title="Amber Gold"></button>
                 <button type="button" class="color-swatch" data-color="#f43f5e" style="--swatch-color: #f43f5e;" title="Rose Red"></button>
                 <button type="button" class="color-swatch" data-color="#a855f7" style="--swatch-color: #a855f7;" title="Purple"></button>
-                <button type="button" class="color-swatch" data-color="#ec4899" style="--swatch-color: #ec4899;" title="Pink"></button>
                 <button type="button" class="color-swatch" data-color="#14b8a6" style="--swatch-color: #14b8a6;" title="Teal"></button>
-                <input type="color" id="grid-custom-color" class="color-picker-input" value="#38bdf8" title="Custom color">
+                <label class="color-custom-btn" title="Pick custom color">
+                  <input type="color" id="grid-custom-color" value="#38bdf8">
+                  <span aria-hidden="true">+</span>
+                </label>
                 <button type="button" class="color-swatch color-swatch-none" id="btn-uncolor-selection" title="Clear color of selected cells">&times;</button>
               </div>
 
@@ -222,40 +217,31 @@
                   <input type="checkbox" id="toggle-auto-paint">
                   <span>Auto-color on select</span>
                 </label>
-                <button type="button" class="btn btn-sm btn-primary" id="btn-apply-color">Color</button>
+                <button type="button" class="btn btn-sm btn-secondary" id="btn-apply-color">Apply Color</button>
               </div>
             </div>
 
             <!-- 2D Prefix, Range Ops & Aggregates -->
             <details class="sidebar-section sidebar-accordion" id="section-prefix-sums" open>
               <summary class="section-header accordion-summary">
-                <h3>2D Prefix &amp; Range Ops</h3>
+                <h3>Inspector &amp; Range Ops</h3>
                 <span class="accordion-caret">▾</span>
               </summary>
               <div class="prefix-sums-container">
                 <div id="submatrix-stats" class="submatrix-stats-box">
                   <div class="stat-line"><span>Range:</span> <code id="sub-range-text">None selected</code></div>
-                  <div class="stat-line"><span>Area:</span> <strong id="sub-area-text">0</strong></div>
-                  <div class="stat-line"><span>Sum:</span> <strong id="sub-sum-text" class="text-accent">0</strong></div>
+                  <div class="stat-line"><span>Area / Sum:</span> <strong><span id="sub-area-text">0</span> / <span id="sub-sum-text" class="text-accent">0</span></strong></div>
                   <div class="stat-line"><span>Min / Max:</span> <strong id="sub-minmax-text">-</strong></div>
                   <div class="stat-line"><span>Avg / XOR:</span> <strong id="sub-avgxor-text">-</strong></div>
                   <div class="stat-line"><span>GCD:</span> <strong id="sub-gcd-text">-</strong></div>
                 </div>
 
-                <!-- 2D Range Add (Difference Array) + 2D Kadane -->
+                <!-- 2D Range Add & 2D Kadane -->
                 <div class="range-ops-row mt-2">
-                  <input type="number" id="grid-range-delta" class="compact-num-input" value="1" title="Range update delta">
+                  <input type="number" id="grid-range-delta" class="compact-num-input no-spin" value="1" title="Range update delta">
                   <button type="button" class="btn btn-sm btn-secondary" id="btn-range-add" title="Add delta to selected cells">+Add</button>
                   <button type="button" class="btn btn-sm btn-secondary" id="btn-range-sub" title="Subtract delta from selected cells">−Sub</button>
-                  <button type="button" class="btn btn-sm btn-secondary" id="btn-kadane-2d" title="Find Maximum Submatrix Sum (2D Kadane)">MaxSum</button>
-                </div>
-
-                <!-- KxK Sliding Window -->
-                <div class="range-ops-row mt-2">
-                  <span class="mini-label">K×K Win:</span>
-                  <input type="number" id="grid-window-k" class="compact-num-input" min="1" max="50" value="3">
-                  <button type="button" class="btn btn-sm btn-secondary" id="btn-win-prev" title="Previous K×K window">◀</button>
-                  <button type="button" class="btn btn-sm btn-secondary" id="btn-win-next" title="Next K×K window">▶</button>
+                  <button type="button" class="btn btn-sm btn-secondary flex-1" id="btn-kadane-2d" title="Find Maximum Submatrix Sum (2D Kadane)">MaxSum</button>
                 </div>
 
                 <div class="checkbox-grid-2 mt-2">
@@ -275,48 +261,42 @@
                     <input type="checkbox" id="toggle-subscripts">
                     <span>(r,c) Index</span>
                   </label>
-                  <label class="custom-checkbox">
-                    <input type="checkbox" id="toggle-1d-index">
-                    <span>1D Flattened</span>
-                  </label>
                 </div>
               </div>
             </details>
 
             <!-- Matrix Transforms & CP Grid Algorithms -->
-            <details class="sidebar-section sidebar-accordion" id="section-grid-algos" open>
+            <details class="sidebar-section sidebar-accordion" id="section-grid-algos">
               <summary class="section-header accordion-summary">
                 <h3>Transforms &amp; Algorithms</h3>
                 <span class="accordion-caret">▾</span>
               </summary>
 
               <!-- Transforms -->
-              <div class="presets-row">
-                <button type="button" class="chip-btn" id="btn-grid-transpose" title="Transpose Matrix (Swap R & C)">Transpose</button>
-                <button type="button" class="chip-btn" id="btn-grid-rot-cw" title="Rotate 90° Clockwise">Rot 90°</button>
-                <button type="button" class="chip-btn" id="btn-grid-rot-ccw" title="Rotate 90° Counter-Clockwise">Rot -90°</button>
-                <button type="button" class="chip-btn" id="btn-grid-flip-h" title="Flip Horizontally">Flip H</button>
-                <button type="button" class="chip-btn" id="btn-grid-flip-v" title="Flip Vertically">Flip V</button>
+              <div class="seg-group seg-4">
+                <button type="button" class="seg-btn" id="btn-grid-transpose" title="Transpose Matrix (Swap R & C)">Transpose</button>
+                <button type="button" class="seg-btn" id="btn-grid-rot-cw" title="Rotate 90° Clockwise">Rot 90°</button>
+                <button type="button" class="seg-btn" id="btn-grid-flip-h" title="Flip Horizontally">Flip H</button>
+                <button type="button" class="seg-btn" id="btn-grid-flip-v" title="Flip Vertically">Flip V</button>
               </div>
 
-              <!-- Direction + Pattern Overlays -->
+              <!-- Direction Header -->
               <div class="algo-controls-row">
+                <span class="mini-label">Graph &amp; DP</span>
                 <div class="mini-pills-row" role="group" aria-label="Grid Neighbor Directions">
                   <button type="button" class="mini-pill active" data-grid-dir="4">4-Dir</button>
                   <button type="button" class="mini-pill" data-grid-dir="8">8-Dir</button>
                 </div>
-                <button type="button" class="chip-btn" id="btn-overlay-spiral" title="Visualize Spiral Traversal Order">Spiral</button>
-                <button type="button" class="chip-btn" id="btn-overlay-rings" title="Visualize Concentric Ring Layers">Layers</button>
               </div>
 
-              <!-- Graph & DP Algorithm Triggers -->
+              <!-- Graph & DP Algorithm Triggers (Clean 3x2 grid, zero orphans) -->
               <div class="btn-grid-2">
-                <button type="button" class="btn btn-sm btn-primary" id="btn-grid-bfs" title="BFS Shortest Path from Start S to Target T">BFS Path</button>
+                <button type="button" class="btn btn-sm btn-secondary" id="btn-grid-bfs" title="BFS Shortest Path from Start S to Target T">BFS Path</button>
                 <button type="button" class="btn btn-sm btn-secondary" id="btn-grid-dijkstra" title="Minimum Weight Cost Path S → T">Dijkstra</button>
                 <button type="button" class="btn btn-sm btn-secondary" id="btn-grid-components" title="Color Connected Non-Wall Components">Components</button>
                 <button type="button" class="btn btn-sm btn-secondary" id="btn-grid-dp-min" title="Min Path Sum DP (0,0 → R-1,C-1)">DP MinSum</button>
                 <button type="button" class="btn btn-sm btn-secondary" id="btn-grid-dp-ways" title="Number of Grid Paths mod 10^9+7">DP Ways</button>
-                <button type="button" class="btn btn-sm btn-secondary" id="btn-grid-esc-cancel" title="Cancel all active selections & overlays (Esc)">Esc: Cancel</button>
+                <button type="button" class="btn btn-sm btn-secondary" id="btn-overlay-spiral" title="Visualize Spiral Traversal Order">Spiral Order</button>
               </div>
 
               <!-- Algorithm Result Output -->
