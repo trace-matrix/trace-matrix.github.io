@@ -31,6 +31,13 @@ class GridVisualizer {
     this.isSelectingSubmatrix = false;
     this.subStart = null;
 
+    // Selection & Coloring state
+    this.selectionMode = 'submatrix'; // 'submatrix' | 'cell' | 'subarray' | 'row' | 'col'
+    this.activeColor = '#38bdf8';
+    this.autoPaint = false;
+    this.hoverHeader = null;
+    this.headerDrag = null;
+
     // Visualization modes
     this.showHeatmap = false;
     this.showPrefixOverlay = false;
@@ -44,6 +51,7 @@ class GridVisualizer {
     }
 
     this.initEventListeners();
+    this.updateQuickSelectUI();
     this.resizeCanvas();
     this.fitGrid();
   }
@@ -57,13 +65,16 @@ class GridVisualizer {
       for (let c = 0; c < this.cols; c++) {
         row.push({
           val: defaultValue,
-          type: 'empty'
+          type: 'empty',
+          source: 'empty',
+          color: null
         });
       }
       this.grid.push(row);
     }
     this.submatrix = null;
     this.updateDimBadge();
+    this.updateSubmatrixStats();
   }
 
   updateDimBadge() {
@@ -169,13 +180,11 @@ class GridVisualizer {
 
     // Batch Paste & Input Controls (x y val)
     const batchInput = document.getElementById('grid-batch-input');
-    batchInput?.addEventListener('paste', (e) => {
-      const clipboardText = e.clipboardData ? e.clipboardData.getData('text') : null;
-      if (clipboardText) {
-        setTimeout(() => {
-          this.parseBatchInput(clipboardText, true);
-        }, 30);
-      }
+    batchInput?.addEventListener('paste', () => {
+      clearTimeout(this._batchTimer);
+      setTimeout(() => {
+        this.parseBatchInput(batchInput.value, true);
+      }, 30);
     });
 
     batchInput?.addEventListener('input', () => {
@@ -196,6 +205,68 @@ class GridVisualizer {
 
     document.getElementById('btn-clear-batch-text')?.addEventListener('click', () => {
       if (batchInput) batchInput.value = '';
+      this.parseBatchInput('', false);
+    });
+
+    // Selection Mode Pills
+    document.querySelectorAll('[data-sel-mode]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.setSelectionMode(btn.dataset.selMode);
+      });
+    });
+
+    // Quick Select Inputs & Button
+    document.getElementById('btn-qs-select')?.addEventListener('click', () => {
+      this.applyQuickSelect();
+    });
+    document.querySelectorAll('#grid-quick-select input').forEach(inp => {
+      inp.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          this.applyQuickSelect();
+        }
+      });
+    });
+
+    // Color Palette Swatches & Picker
+    document.querySelectorAll('.color-swatch[data-color]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.setActiveColor(btn.dataset.color, btn);
+        if (this.submatrix) {
+          this.applyColorToSelection(this.activeColor, false);
+        }
+      });
+    });
+
+    const customPicker = document.getElementById('grid-custom-color');
+    customPicker?.addEventListener('input', (e) => {
+      this.setActiveColor(e.target.value, null);
+      if (this.submatrix) {
+        this.applyColorToSelection(this.activeColor, false);
+      }
+    });
+    customPicker?.addEventListener('change', (e) => {
+      this.setActiveColor(e.target.value, null);
+      if (this.submatrix) {
+        this.applyColorToSelection(this.activeColor, false);
+      }
+      this.saveState();
+    });
+
+    document.getElementById('btn-apply-color')?.addEventListener('click', () => {
+      this.applyColorToSelection(this.activeColor, true);
+    });
+
+    document.getElementById('btn-uncolor-selection')?.addEventListener('click', () => {
+      this.applyColorToSelection(null, true);
+    });
+
+    document.getElementById('btn-clear-all-colors')?.addEventListener('click', () => {
+      this.clearAllColors();
+    });
+
+    document.getElementById('toggle-auto-paint')?.addEventListener('change', (e) => {
+      this.autoPaint = e.target.checked;
       this.saveState();
     });
 
@@ -208,7 +279,7 @@ class GridVisualizer {
     const rect = this.container.getBoundingClientRect();
     const cx = rect.width / 2;
     const cy = rect.height / 2;
-    const newZoom = Math.max(0.2, Math.min(3.5, this.zoom * factor));
+    const newZoom = Math.max(0.2, Math.min(4.5, this.zoom * factor));
     this.panX = cx - (cx - this.panX) * (newZoom / this.zoom);
     this.panY = cy - (cy - this.panY) * (newZoom / this.zoom);
     this.zoom = newZoom;
@@ -223,7 +294,7 @@ class GridVisualizer {
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
     const factor = e.deltaY < 0 ? 1.12 : 0.89;
-    const newZoom = Math.max(0.2, Math.min(3.5, this.zoom * factor));
+    const newZoom = Math.max(0.2, Math.min(4.5, this.zoom * factor));
 
     this.panX = mouseX - (mouseX - this.panX) * (newZoom / this.zoom);
     this.panY = mouseY - (mouseY - this.panY) * (newZoom / this.zoom);
@@ -242,6 +313,67 @@ class GridVisualizer {
       return { row, col };
     }
     return null;
+  }
+
+  screenToHeader(sx, sy) {
+    const cs = this.cellSize * this.zoom;
+    const lx = sx - this.panX;
+    const ly = sy - this.panY;
+    const headerBand = Math.max(28, cs * 0.85);
+    if (lx >= 0 && lx < this.cols * cs && ly >= -headerBand && ly < 0) {
+      return { type: 'col', index: Math.floor(lx / cs) };
+    }
+    if (ly >= 0 && ly < this.rows * cs && lx >= -headerBand && lx < 0) {
+      return { type: 'row', index: Math.floor(ly / cs) };
+    }
+    return null;
+  }
+
+  buildSelectionFromDrag(startCell, endCell) {
+    switch (this.selectionMode) {
+      case 'cell':
+        return { r1: endCell.row, c1: endCell.col, r2: endCell.row, c2: endCell.col };
+      case 'row':
+        return {
+          r1: Math.min(startCell.row, endCell.row),
+          c1: 0,
+          r2: Math.max(startCell.row, endCell.row),
+          c2: this.cols - 1
+        };
+      case 'col':
+        return {
+          r1: 0,
+          c1: Math.min(startCell.col, endCell.col),
+          r2: this.rows - 1,
+          c2: Math.max(startCell.col, endCell.col)
+        };
+      case 'subarray': {
+        const dr = Math.abs(endCell.row - startCell.row);
+        const dc = Math.abs(endCell.col - startCell.col);
+        if (dc >= dr) {
+          return {
+            r1: startCell.row,
+            c1: Math.min(startCell.col, endCell.col),
+            r2: startCell.row,
+            c2: Math.max(startCell.col, endCell.col)
+          };
+        }
+        return {
+          r1: Math.min(startCell.row, endCell.row),
+          c1: startCell.col,
+          r2: Math.max(startCell.row, endCell.row),
+          c2: startCell.col
+        };
+      }
+      case 'submatrix':
+      default:
+        return {
+          r1: Math.min(startCell.row, endCell.row),
+          c1: Math.min(startCell.col, endCell.col),
+          r2: Math.max(startCell.row, endCell.row),
+          c2: Math.max(startCell.col, endCell.col)
+        };
+    }
   }
 
   handleMouseDown(e) {
@@ -264,15 +396,29 @@ class GridVisualizer {
       this.isSelectingSubmatrix = true;
       this.subStart = cell;
       this.selectedCell = cell;
-      this.submatrix = { r1: cell.row, c1: cell.col, r2: cell.row, c2: cell.col };
+      this.submatrix = this.buildSelectionFromDrag(cell, cell);
       this.updateSubmatrixStats();
       this.render();
-    } else {
-      this.isPanning = true;
-      this.lastMouseX = e.clientX;
-      this.lastMouseY = e.clientY;
-      this.removeInlineEditor();
+      return;
     }
+
+    const hdr = this.screenToHeader(sx, sy);
+    if (hdr) {
+      this.headerDrag = { type: hdr.type, startIndex: hdr.index };
+      if (hdr.type === 'row') {
+        this.submatrix = { r1: hdr.index, c1: 0, r2: hdr.index, c2: this.cols - 1 };
+      } else {
+        this.submatrix = { r1: 0, c1: hdr.index, r2: this.rows - 1, c2: hdr.index };
+      }
+      this.updateSubmatrixStats();
+      this.render();
+      return;
+    }
+
+    this.isPanning = true;
+    this.lastMouseX = e.clientX;
+    this.lastMouseY = e.clientY;
+    this.removeInlineEditor();
   }
 
   handleMouseMove(e) {
@@ -291,16 +437,41 @@ class GridVisualizer {
       return;
     }
 
+    const cs = this.cellSize * this.zoom;
+
+    if (this.headerDrag) {
+      if (this.headerDrag.type === 'row') {
+        const idx = Math.max(0, Math.min(this.rows - 1, Math.floor((sy - this.panY) / cs)));
+        this.submatrix = {
+          r1: Math.min(this.headerDrag.startIndex, idx),
+          c1: 0,
+          r2: Math.max(this.headerDrag.startIndex, idx),
+          c2: this.cols - 1
+        };
+      } else {
+        const idx = Math.max(0, Math.min(this.cols - 1, Math.floor((sx - this.panX) / cs)));
+        this.submatrix = {
+          r1: 0,
+          c1: Math.min(this.headerDrag.startIndex, idx),
+          r2: this.rows - 1,
+          c2: Math.max(this.headerDrag.startIndex, idx)
+        };
+      }
+      this.updateSubmatrixStats();
+      this.render();
+      return;
+    }
+
     const cell = this.screenToGrid(sx, sy);
     this.hoverCell = cell;
+    this.hoverHeader = !cell ? this.screenToHeader(sx, sy) : null;
+    if (this.canvas) {
+      this.canvas.style.cursor = this.hoverHeader ? 'pointer' : 'default';
+    }
     this.updateStatusPill();
 
     if (this.isSelectingSubmatrix && this.subStart && cell) {
-      const r1 = Math.min(this.subStart.row, cell.row);
-      const r2 = Math.max(this.subStart.row, cell.row);
-      const c1 = Math.min(this.subStart.col, cell.col);
-      const c2 = Math.max(this.subStart.col, cell.col);
-      this.submatrix = { r1, c1, r2, c2 };
+      this.submatrix = this.buildSelectionFromDrag(this.subStart, cell);
       this.updateSubmatrixStats();
       this.render();
     } else {
@@ -309,11 +480,15 @@ class GridVisualizer {
   }
 
   handleMouseUp(e) {
-    if (this.isSelectingSubmatrix) {
+    if (this.isSelectingSubmatrix || this.headerDrag) {
+      if (this.autoPaint && this.submatrix) {
+        this.applyColorToSelection(this.activeColor, false);
+      }
       this.saveState();
     }
     this.isPanning = false;
     this.isSelectingSubmatrix = false;
+    this.headerDrag = null;
   }
 
   // Double-click to edit cell value in place
@@ -348,13 +523,18 @@ class GridVisualizer {
     input.style.top = `${Math.round(cellY)}px`;
     input.style.width = `${Math.round(cs)}px`;
     input.style.height = `${Math.round(cs)}px`;
+    input.style.fontSize = `${Math.round(Math.max(10, cs * 0.38))}px`;
 
+    let committed = false;
     const commit = () => {
+      if (committed) return;
+      committed = true;
       const valStr = input.value.trim();
       const num = Number(valStr);
-      const finalVal = !isNaN(num) && valStr !== '' ? num : valStr;
+      const finalVal = valStr === '' ? 0 : (!isNaN(num) && Number.isFinite(num) ? num : valStr);
       cell.val = finalVal;
       cell.type = 'empty';
+      cell.source = 'manual';
 
       this.selectedCell = { row, col };
       this.updateSubmatrixStats();
@@ -400,6 +580,8 @@ class GridVisualizer {
       for (let c = 0; c < this.cols; c++) {
         this.grid[r][c].val = 0;
         this.grid[r][c].type = 'empty';
+        this.grid[r][c].source = 'empty';
+        this.grid[r][c].color = null;
       }
     }
     this.submatrix = null;
@@ -409,63 +591,122 @@ class GridVisualizer {
     window.App?.showToast('All grid cells reset to 0', 'info');
   }
 
+  resetBatchCells() {
+    for (let r = 0; r < this.rows; r++) {
+      for (let c = 0; c < this.cols; c++) {
+        if (this.grid[r][c].source !== 'manual') {
+          this.grid[r][c].val = 0;
+          this.grid[r][c].type = 'empty';
+          this.grid[r][c].source = 'empty';
+        }
+      }
+    }
+  }
+
+  parseTokenValue(valStr) {
+    const trimmed = valStr.trim();
+    if (trimmed === '') return 0;
+    const num = Number(trimmed);
+    return !isNaN(num) && Number.isFinite(num) ? num : trimmed;
+  }
+
   parseBatchInput(rawText, showToast = true) {
-    if (!rawText || !rawText.trim()) return;
+    this.resetBatchCells();
 
-    const lines = rawText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
-    if (lines.length === 0) return;
-
-    const parsedEntries = [];
-    let startLine = 0;
-
-    // Check if first line is just an entry count N
-    const firstTokens = lines[0].split(/[\s,]+/).filter(t => t.length > 0);
-    if (firstTokens.length === 1 && !isNaN(Number(firstTokens[0]))) {
-      startLine = 1;
-    }
-
-    const isOneIdx = window.App?.isOneIndexed;
-    let minR = Infinity, minC = Infinity;
-    let maxR = -Infinity, maxC = -Infinity;
-
-    for (let i = startLine; i < lines.length; i++) {
-      const tokens = lines[i].split(/[\s,]+/).filter(t => t.length > 0);
-      if (tokens.length >= 2) {
-        const rawR = parseInt(tokens[0]);
-        const rawC = parseInt(tokens[1]);
-        if (isNaN(rawR) || isNaN(rawC)) continue;
-
-        const valStr = tokens.length >= 3 ? tokens.slice(2).join(' ') : '1';
-        const num = Number(valStr);
-        const finalVal = !isNaN(num) && valStr.trim() !== '' ? num : valStr;
-
-        parsedEntries.push({ r: rawR, c: rawC, val: finalVal });
-        minR = Math.min(minR, rawR);
-        minC = Math.min(minC, rawC);
-        maxR = Math.max(maxR, rawR);
-        maxC = Math.max(maxC, rawC);
-      }
-    }
-
-    if (parsedEntries.length === 0) {
-      if (showToast) {
-        window.App?.showToast('No valid "x y val" rows found in input', 'error');
-      }
+    if (!rawText || !rawText.trim()) {
+      this.updateSubmatrixStats();
+      this.render();
+      this.saveState();
       return;
     }
 
-    // If 1-indexed mode is toggled on and min coordinate >= 1, shift by -1
-    const shouldSubtract1 = isOneIdx && minR >= 1 && minC >= 1;
+    const lines = rawText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+    if (lines.length === 0) {
+      this.updateSubmatrixStats();
+      this.render();
+      this.saveState();
+      return;
+    }
+
+    const tokenizedLines = lines.map(l => l.split(/[\s,;]+/).filter(t => t.length > 0));
+    let startLine = 0;
+    const intRe = /^-?\d+$/;
+
+    // Skip leading single-number count N (e.g. number of entries)
+    if (tokenizedLines[0].length === 1 && intRe.test(tokenizedLines[0][0])) {
+      startLine = 1;
+    } else if (
+      tokenizedLines.length > 1 &&
+      tokenizedLines[0].length === 2 &&
+      intRe.test(tokenizedLines[0][0]) &&
+      intRe.test(tokenizedLines[0][1]) &&
+      tokenizedLines.length - 1 === parseInt(tokenizedLines[0][1], 10) &&
+      tokenizedLines.slice(1).every(t => t.length === 3)
+    ) {
+      // Skip leading "N M" header followed by M coordinate-value lines
+      startLine = 1;
+    }
+
+    const dataRows = tokenizedLines.slice(startLine);
+    if (dataRows.length === 0) {
+      this.updateSubmatrixStats();
+      this.render();
+      this.saveState();
+      return;
+    }
+
+    const parsedEntries = [];
+    const firstRowLen = dataRows[0].length;
+    const isMatrixBlock = firstRowLen >= 4 && dataRows.every(t => t.length === firstRowLen);
+
+    if (isMatrixBlock) {
+      for (let r = 0; r < dataRows.length; r++) {
+        for (let c = 0; c < dataRows[r].length; c++) {
+          parsedEntries.push({ r, c, val: this.parseTokenValue(dataRows[r][c]), rawCoord: false });
+        }
+      }
+    } else {
+      const isOneIdx = window.App?.isOneIndexed;
+      let minR = Infinity, minC = Infinity;
+
+      for (const tokens of dataRows) {
+        if ((tokens.length === 2 || tokens.length === 3) && intRe.test(tokens[0]) && intRe.test(tokens[1])) {
+          const rawR = parseInt(tokens[0], 10);
+          const rawC = parseInt(tokens[1], 10);
+          const finalVal = tokens.length === 3 ? this.parseTokenValue(tokens[2]) : 1;
+          parsedEntries.push({ r: rawR, c: rawC, val: finalVal, rawCoord: true });
+          minR = Math.min(minR, rawR);
+          minC = Math.min(minC, rawC);
+        }
+      }
+
+      if (parsedEntries.length === 0) {
+        this.updateSubmatrixStats();
+        this.render();
+        this.saveState();
+        if (showToast) {
+          window.App?.showToast('No valid "x y val" rows found in input', 'error');
+        }
+        return;
+      }
+
+      // If 1-indexed mode is toggled on and min coordinate >= 1, shift by -1
+      const shouldSubtract1 = isOneIdx && minR >= 1 && minC >= 1;
+      if (shouldSubtract1) {
+        for (const entry of parsedEntries) {
+          entry.r -= 1;
+          entry.c -= 1;
+        }
+      }
+    }
+
     let targetMaxR = -1;
     let targetMaxC = -1;
-
     for (const entry of parsedEntries) {
-      if (shouldSubtract1) {
-        entry.r -= 1;
-        entry.c -= 1;
+      if (entry.r >= 0 && entry.c >= 0) {
+        targetMaxR = Math.max(targetMaxR, entry.r);
+        targetMaxC = Math.max(targetMaxC, entry.c);
       }
-      targetMaxR = Math.max(targetMaxR, entry.r);
-      targetMaxC = Math.max(targetMaxC, entry.c);
     }
 
     // Auto-expand grid if coordinates exceed current bounds (up to 100 max)
@@ -482,6 +723,7 @@ class GridVisualizer {
       if (entry.r >= 0 && entry.r < this.rows && entry.c >= 0 && entry.c < this.cols) {
         this.grid[entry.r][entry.c].val = entry.val;
         this.grid[entry.r][entry.c].type = 'empty';
+        this.grid[entry.r][entry.c].source = 'batch';
         updatedCount++;
       }
     }
@@ -509,7 +751,7 @@ class GridVisualizer {
         if (r < oldRows && c < oldCols) {
           row.push(oldGrid[r][c]);
         } else {
-          row.push({ val: 0, type: 'empty' });
+          row.push({ val: 0, type: 'empty', source: 'empty', color: null });
         }
       }
       this.grid.push(row);
@@ -557,6 +799,194 @@ class GridVisualizer {
       }
     }
     return P;
+  }
+
+  // ==========================================
+  // SELECTION MODES & MULTI-COLOR PAINTING
+  // ==========================================
+
+  setSelectionMode(mode) {
+    this.selectionMode = mode || 'submatrix';
+    document.querySelectorAll('[data-sel-mode]').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.selMode === this.selectionMode);
+    });
+    this.updateQuickSelectUI();
+    this.syncQuickSelectInputs();
+    this.saveState();
+  }
+
+  setActiveColor(color, activeSwatchBtn = null) {
+    this.activeColor = color;
+    document.querySelectorAll('.color-swatch[data-color]').forEach(btn => {
+      btn.classList.toggle('active', activeSwatchBtn ? btn === activeSwatchBtn : btn.dataset.color === color);
+    });
+    const picker = document.getElementById('grid-custom-color');
+    if (picker && /^#[0-9a-fA-F]{6}$/.test(color)) {
+      picker.value = color;
+    }
+    this.saveState();
+  }
+
+  updateQuickSelectUI() {
+    const fR1 = document.querySelector('.qs-field[data-qs="r1"]');
+    const fC1 = document.querySelector('.qs-field[data-qs="c1"]');
+    const fR2 = document.querySelector('.qs-field[data-qs="r2"]');
+    const fC2 = document.querySelector('.qs-field[data-qs="c2"]');
+    const lR1 = document.getElementById('lbl-qs-r1');
+    const lC1 = document.getElementById('lbl-qs-c1');
+    const lR2 = document.getElementById('lbl-qs-r2');
+    const lC2 = document.getElementById('lbl-qs-c2');
+    if (!fR1 || !fC1 || !fR2 || !fC2) return;
+
+    fR1.classList.remove('hidden');
+    fC1.classList.remove('hidden');
+    fR2.classList.remove('hidden');
+    fC2.classList.remove('hidden');
+
+    if (this.selectionMode === 'cell') {
+      fR2.classList.add('hidden');
+      fC2.classList.add('hidden');
+      if (lR1) lR1.textContent = 'row';
+      if (lC1) lC1.textContent = 'col';
+    } else if (this.selectionMode === 'row') {
+      fC1.classList.add('hidden');
+      fC2.classList.add('hidden');
+      if (lR1) lR1.textContent = 'r1';
+      if (lR2) lR2.textContent = 'r2';
+    } else if (this.selectionMode === 'col') {
+      fR1.classList.add('hidden');
+      fR2.classList.add('hidden');
+      if (lC1) lC1.textContent = 'c1';
+      if (lC2) lC2.textContent = 'c2';
+    } else {
+      if (lR1) lR1.textContent = 'r1';
+      if (lC1) lC1.textContent = 'c1';
+      if (lR2) lR2.textContent = 'r2';
+      if (lC2) lC2.textContent = 'c2';
+    }
+  }
+
+  syncQuickSelectInputs() {
+    const inpR1 = document.getElementById('qs-r1');
+    const inpC1 = document.getElementById('qs-c1');
+    const inpR2 = document.getElementById('qs-r2');
+    const inpC2 = document.getElementById('qs-c2');
+    if (!inpR1 || !inpC1 || !inpR2 || !inpC2 || !this.submatrix) return;
+
+    const offset = window.App?.isOneIndexed ? 1 : 0;
+    inpR1.value = this.submatrix.r1 + offset;
+    inpC1.value = this.submatrix.c1 + offset;
+    inpR2.value = this.submatrix.r2 + offset;
+    inpC2.value = this.submatrix.c2 + offset;
+  }
+
+  applyQuickSelect() {
+    const inpR1 = document.getElementById('qs-r1');
+    const inpC1 = document.getElementById('qs-c1');
+    const inpR2 = document.getElementById('qs-r2');
+    const inpC2 = document.getElementById('qs-c2');
+    if (!inpR1 || !inpC1 || !inpR2 || !inpC2) return;
+
+    const offset = window.App?.isOneIndexed ? 1 : 0;
+    const clampR = (v) => Math.max(0, Math.min(this.rows - 1, v));
+    const clampC = (v) => Math.max(0, Math.min(this.cols - 1, v));
+
+    const r1Raw = (parseInt(inpR1.value, 10) || 0) - offset;
+    const c1Raw = (parseInt(inpC1.value, 10) || 0) - offset;
+    const r2Raw = (parseInt(inpR2.value, 10) || 0) - offset;
+    const c2Raw = (parseInt(inpC2.value, 10) || 0) - offset;
+
+    let sel;
+    if (this.selectionMode === 'cell') {
+      const r = clampR(r1Raw);
+      const c = clampC(c1Raw);
+      sel = { r1: r, c1: c, r2: r, c2: c };
+    } else if (this.selectionMode === 'row') {
+      const ra = clampR(r1Raw);
+      const rb = clampR(inpR2.value === '' ? r1Raw : r2Raw);
+      sel = { r1: Math.min(ra, rb), c1: 0, r2: Math.max(ra, rb), c2: this.cols - 1 };
+    } else if (this.selectionMode === 'col') {
+      const ca = clampC(c1Raw);
+      const cb = clampC(inpC2.value === '' ? c1Raw : c2Raw);
+      sel = { r1: 0, c1: Math.min(ca, cb), r2: this.rows - 1, c2: Math.max(ca, cb) };
+    } else if (this.selectionMode === 'subarray') {
+      const ra = clampR(r1Raw), ca = clampC(c1Raw);
+      let rb = clampR(r2Raw), cb = clampC(c2Raw);
+      if (ra !== rb && ca !== cb) {
+        // Keep subarray 1D: lock to row slice unless row span > col span
+        if (Math.abs(rb - ra) > Math.abs(cb - ca)) {
+          cb = ca;
+        } else {
+          rb = ra;
+        }
+      }
+      sel = { r1: Math.min(ra, rb), c1: Math.min(ca, cb), r2: Math.max(ra, rb), c2: Math.max(ca, cb) };
+    } else {
+      const ra = clampR(r1Raw), ca = clampC(c1Raw);
+      const rb = clampR(r2Raw), cb = clampC(c2Raw);
+      sel = { r1: Math.min(ra, rb), c1: Math.min(ca, cb), r2: Math.max(ra, rb), c2: Math.max(ca, cb) };
+    }
+
+    this.submatrix = sel;
+    this.selectedCell = { row: sel.r1, col: sel.c1 };
+    this.updateSubmatrixStats();
+    if (this.autoPaint) {
+      this.applyColorToSelection(this.activeColor, false);
+    } else {
+      this.render();
+      this.saveState();
+    }
+  }
+
+  applyColorToSelection(color, showToast = true) {
+    if (!this.submatrix) {
+      if (showToast) {
+        window.App?.showToast('Select a cell, row, col, subarray, or submatrix first', 'info');
+      }
+      return;
+    }
+    const { r1, c1, r2, c2 } = this.submatrix;
+    for (let r = r1; r <= r2; r++) {
+      for (let c = c1; c <= c2; c++) {
+        if (this.grid[r] && this.grid[r][c]) {
+          this.grid[r][c].color = color;
+        }
+      }
+    }
+    this.render();
+    this.saveState();
+    if (showToast) {
+      window.App?.showToast(color ? 'Colored selected cells' : 'Cleared color from selection', 'info');
+    }
+  }
+
+  clearAllColors() {
+    for (let r = 0; r < this.rows; r++) {
+      for (let c = 0; c < this.cols; c++) {
+        this.grid[r][c].color = null;
+      }
+    }
+    this.render();
+    this.saveState();
+    window.App?.showToast('Cleared all cell colors', 'info');
+  }
+
+  hexToRgba(hex, alpha = 1) {
+    if (!hex || typeof hex !== 'string') return `rgba(56, 189, 248, ${alpha})`;
+    const clean = hex.replace('#', '');
+    if (clean.length === 3) {
+      const r = parseInt(clean[0] + clean[0], 16);
+      const g = parseInt(clean[1] + clean[1], 16);
+      const b = parseInt(clean[2] + clean[2], 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+    if (clean.length === 6) {
+      const r = parseInt(clean.slice(0, 2), 16);
+      const g = parseInt(clean.slice(2, 4), 16);
+      const b = parseInt(clean.slice(4, 6), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+    return hex;
   }
 
   updateSubmatrixStats() {
@@ -607,7 +1037,7 @@ class GridVisualizer {
       }
     }
 
-    if (rangeText) rangeText.textContent = `[${r1Disp},${c1Disp}]x [${r2Disp},${c2Disp}] (${height}×${width})`;
+    if (rangeText) rangeText.textContent = `[${r1Disp},${c1Disp}]x[${r2Disp},${c2Disp}]    (${height}×${width})`;
     if (areaText) areaText.textContent = `${totalCells}`;
     if (sumText) sumText.textContent = hasNumeric ? (Number.isInteger(sum) ? sum : sum.toFixed(2)) : '0';
     if (minText) minText.textContent = hasNumeric ? `${minVal}` : '-';
@@ -639,6 +1069,8 @@ class GridVisualizer {
         <div class="calc-row">= <strong>${pTotal}</strong> − <strong>${pTop}</strong> − <strong>${pLeft}</strong> + <strong>${pDiag}</strong> = <strong class="text-accent">${calcSum}</strong></div>
       `;
     }
+
+    this.syncQuickSelectInputs();
   }
 
   // ==========================================
@@ -689,34 +1121,51 @@ class GridVisualizer {
           textColor = ratio > 0.6 ? '#ffffff' : '#e0f2fe';
         }
 
-        // Cell rect
+        // Cell rect base
         this.ctx.fillStyle = fillColor;
         this.ctx.fillRect(x, y, cs, cs);
 
-        // Crisp border
-        this.ctx.strokeStyle = '#273549';
-        this.ctx.lineWidth = 1;
-        this.ctx.strokeRect(x, y, cs, cs);
+        // Custom user color tint overlay (cells, subarrays, submatrices, rows, columns)
+        if (cell.color) {
+          this.ctx.fillStyle = this.hexToRgba(cell.color, 0.38);
+          this.ctx.fillRect(x, y, cs, cs);
+          this.ctx.strokeStyle = this.hexToRgba(cell.color, 0.85);
+          this.ctx.lineWidth = Math.max(1, cs * 0.03);
+          this.ctx.strokeRect(x + 0.5, y + 0.5, cs - 1, cs - 1);
+          textColor = '#f8fafc';
+        } else {
+          // Crisp default border
+          this.ctx.strokeStyle = '#273549';
+          this.ctx.lineWidth = 1;
+          this.ctx.strokeRect(x, y, cs, cs);
+        }
 
-        // Cell Center Value
-        const fontSize = Math.max(10, Math.min(20, cs * 0.36));
+        // Cell Center Value (scales continuously with zoom, auto-fits long strings)
+        const textStr = String(this.showPrefixOverlay ? P[r + 1][c + 1] : cell.val);
+        let fontSize = Math.max(8, cs * 0.38);
         this.ctx.font = `600 ${fontSize}px "JetBrains Mono", Menlo, monospace`;
+        const maxTextWidth = cs * 0.84;
+        const measuredWidth = this.ctx.measureText(textStr).width;
+        if (measuredWidth > maxTextWidth && maxTextWidth > 0) {
+          fontSize = Math.max(7, fontSize * (maxTextWidth / measuredWidth));
+          this.ctx.font = `600 ${fontSize}px "JetBrains Mono", Menlo, monospace`;
+        }
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
         this.ctx.fillStyle = textColor;
+        this.ctx.fillText(textStr, x + cs / 2, y + cs / 2);
 
-        const text = this.showPrefixOverlay ? P[r + 1][c + 1] : cell.val;
-        this.ctx.fillText(text, x + cs / 2, y + cs / 2);
-
-        // Coordinate subscripts
-        if (this.showSubscripts && cs >= 42) {
+        // Coordinate subscripts (also scale with zoom)
+        if (this.showSubscripts && cs >= 36) {
           const rDisp = isOneIdx ? r + 1 : r;
           const cDisp = isOneIdx ? c + 1 : c;
-          this.ctx.font = `500 ${Math.max(8, fontSize * 0.52)}px "JetBrains Mono", Menlo, monospace`;
-          this.ctx.fillStyle = 'rgba(148, 163, 184, 0.65)';
+          const subFontSize = Math.max(7, cs * 0.16);
+          const pad = Math.max(2, cs * 0.06);
+          this.ctx.font = `500 ${subFontSize}px "JetBrains Mono", Menlo, monospace`;
+          this.ctx.fillStyle = 'rgba(148, 163, 184, 0.72)';
           this.ctx.textAlign = 'right';
           this.ctx.textBaseline = 'bottom';
-          this.ctx.fillText(`${rDisp},${cDisp}`, x + cs - 3, y + cs - 2);
+          this.ctx.fillText(`${rDisp},${cDisp}`, x + cs - pad, y + cs - pad * 0.65);
         }
       }
     }
@@ -729,11 +1178,11 @@ class GridVisualizer {
       const sw = (c2 - c1 + 1) * cs;
       const sh = (r2 - r1 + 1) * cs;
 
-      this.ctx.fillStyle = 'rgba(56, 189, 248, 0.18)';
+      this.ctx.fillStyle = 'rgba(56, 189, 248, 0.16)';
       this.ctx.fillRect(sx, sy, sw, sh);
 
       this.ctx.strokeStyle = '#38bdf8';
-      this.ctx.lineWidth = 2.5;
+      this.ctx.lineWidth = Math.max(2, cs * 0.045);
       this.ctx.strokeRect(sx, sy, sw, sh);
     }
 
@@ -753,29 +1202,33 @@ class GridVisualizer {
   }
 
   renderHeaders(cs, isOneIdx) {
-    const headerFont = `600 ${Math.max(10, Math.min(13, cs * 0.28))}px "JetBrains Mono", Menlo, monospace`;
+    const headerFontSize = Math.max(9, cs * 0.28);
+    const headerFont = `600 ${headerFontSize}px "JetBrains Mono", Menlo, monospace`;
+    const headerGap = Math.max(6, cs * 0.16);
     this.ctx.font = headerFont;
 
     // Column Headers (Top)
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'bottom';
     for (let c = 0; c < this.cols; c++) {
-      const isHoveredCol = this.hoverCell && this.hoverCell.col === c;
+      const isHoveredCol = (this.hoverCell && this.hoverCell.col === c) ||
+        (this.hoverHeader && this.hoverHeader.type === 'col' && this.hoverHeader.index === c);
       this.ctx.fillStyle = isHoveredCol ? '#38bdf8' : '#94a3b8';
       const label = isOneIdx ? c + 1 : c;
       const x = c * cs + cs / 2;
-      this.ctx.fillText(label, x, -8);
+      this.ctx.fillText(label, x, -headerGap);
     }
 
     // Row Headers (Left)
     this.ctx.textAlign = 'right';
     this.ctx.textBaseline = 'middle';
     for (let r = 0; r < this.rows; r++) {
-      const isHoveredRow = this.hoverCell && this.hoverCell.row === r;
+      const isHoveredRow = (this.hoverCell && this.hoverCell.row === r) ||
+        (this.hoverHeader && this.hoverHeader.type === 'row' && this.hoverHeader.index === r);
       this.ctx.fillStyle = isHoveredRow ? '#38bdf8' : '#94a3b8';
       const label = isOneIdx ? r + 1 : r;
       const y = r * cs + cs / 2;
-      this.ctx.fillText(label, -10, y);
+      this.ctx.fillText(label, -headerGap * 1.15, y);
     }
 
     // Grid Outer Border
@@ -799,7 +1252,10 @@ class GridVisualizer {
         showPrefixOverlay: this.showPrefixOverlay,
         showSubscripts: this.showSubscripts,
         submatrix: this.submatrix,
-        selectedCell: this.selectedCell
+        selectedCell: this.selectedCell,
+        selectionMode: this.selectionMode,
+        activeColor: this.activeColor,
+        autoPaint: this.autoPaint
       };
       localStorage.setItem('tracematrix_grid_state', JSON.stringify(state));
     } catch (e) {
@@ -844,8 +1300,30 @@ class GridVisualizer {
       if (state.selectedCell) {
         this.selectedCell = state.selectedCell;
       }
+      if (state.selectionMode) {
+        this.selectionMode = state.selectionMode;
+        document.querySelectorAll('[data-sel-mode]').forEach(btn => {
+          btn.classList.toggle('active', btn.dataset.selMode === this.selectionMode);
+        });
+      }
+      if (state.activeColor) {
+        this.activeColor = state.activeColor;
+        document.querySelectorAll('.color-swatch[data-color]').forEach(btn => {
+          btn.classList.toggle('active', btn.dataset.color === this.activeColor);
+        });
+        const picker = document.getElementById('grid-custom-color');
+        if (picker && /^#[0-9a-fA-F]{6}$/.test(this.activeColor)) {
+          picker.value = this.activeColor;
+        }
+      }
+      if (typeof state.autoPaint === 'boolean') {
+        this.autoPaint = state.autoPaint;
+        const chk = document.getElementById('toggle-auto-paint');
+        if (chk) chk.checked = this.autoPaint;
+      }
 
       this.updateDimBadge();
+      this.updateQuickSelectUI();
       this.updateSubmatrixStats();
       return true;
     } catch (e) {
