@@ -53,7 +53,7 @@
 
   /* Layout dimensions */
   --header-height: 48px;
-  --sidebar-width: 312px;
+  --sidebar-width: 324px;
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
@@ -299,12 +299,17 @@ html, body {
   border-right: 1px solid var(--border);
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 14px 13px;
+  padding: 14px 14px 24px;
   display: flex;
   flex-direction: column;
   gap: 12px;
   z-index: 30;
   transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), margin-left 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.sidebar-panel > * {
+  flex-shrink: 0;
+  min-width: 0;
 }
 
 .sidebar-panel.collapsed {
@@ -346,6 +351,13 @@ html, body {
   gap: 8px;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.sidebar-section > * {
+  flex-shrink: 0;
+  min-width: 0;
 }
 
 .sidebar-section:last-child {
@@ -386,7 +398,7 @@ html, body {
 /* Form Inputs */
 .dim-inputs-row {
   display: grid;
-  grid-template-columns: 1fr 1fr auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
   gap: 8px;
   align-items: flex-end;
 }
@@ -395,6 +407,7 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
 }
 
 .input-group label, .block-label {
@@ -408,12 +421,18 @@ html, body {
   padding: 6px 8px;
   font-family: var(--font-mono);
   font-size: 12px;
+  line-height: 1.45;
   color: var(--text-main);
   background-color: var(--bg-surface-elevated);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   outline: none;
   transition: border-color 0.15s ease;
+}
+
+.code-textarea {
+  min-height: 88px;
+  resize: vertical;
 }
 
 .input-group input:focus, .select-input:focus, .code-textarea:focus {
@@ -602,9 +621,9 @@ html, body {
 
 .checkbox-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px 12px;
-  padding: 9px 12px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px 10px;
+  padding: 9px 10px;
   background-color: var(--bg-surface-elevated);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -617,13 +636,21 @@ html, body {
 .custom-checkbox {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  font-size: 11.5px;
+  gap: 6px;
+  font-size: 11px;
   color: var(--text-main);
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   transition: color 0.15s ease;
+}
+
+.custom-checkbox span {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .custom-checkbox:hover {
@@ -654,12 +681,23 @@ html, body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
   font-size: 11.5px;
+  min-width: 0;
+}
+
+.stat-line > span:first-child {
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .stat-line strong, .stat-line code {
   font-family: var(--font-mono);
   font-size: 12px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
 }
 
 #sub-range-text {
@@ -804,7 +842,7 @@ canvas {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  background-color: rgba(17, 24, 39, 0.85);
+  background-color: light-dark(rgba(255, 255, 255, 0.92), rgba(17, 24, 39, 0.88));
   backdrop-filter: blur(8px);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -845,7 +883,7 @@ canvas {
   align-items: center;
   gap: 10px;
   padding: 6px 16px;
-  background-color: rgba(17, 24, 39, 0.85);
+  background-color: light-dark(rgba(255, 255, 255, 0.92), rgba(17, 24, 39, 0.88));
   backdrop-filter: blur(8px);
   border: 1px solid var(--border);
   border-radius: 20px;
@@ -1150,6 +1188,9 @@ input[type="number"].no-spin {
   text-align: center;
   transition: background-color 0.12s ease, color 0.12s ease;
   white-space: nowrap;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .seg-btn:last-child {
@@ -1298,7 +1339,7 @@ input[type="number"].no-spin {
 
 .checkbox-grid-2 {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 7px 10px;
   padding: 8px 10px;
   background-color: var(--bg-surface-elevated);
@@ -1333,7 +1374,7 @@ input[type="number"].no-spin {
 }
 
 .floating-view-cluster button.btn-esc-float {
-  color: #fda4af;
+  color: light-dark(#e11d48, #fda4af);
   font-size: 10.5px;
   border-top: 1px solid var(--border);
   border-radius: 0 0 var(--radius-sm) var(--radius-sm);
@@ -1380,6 +1421,7 @@ input[type="number"].no-spin {
   display: flex;
   gap: 6px;
   align-items: flex-end;
+  min-width: 0;
 }
 
 .qs-field {
