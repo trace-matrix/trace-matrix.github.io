@@ -278,6 +278,7 @@ class GridVisualizer {
     item.endCell = null;
     item.algoOverlay = null;
     item.windowPos = -1;
+    this.hoverInfo = null;
     this.hideAlgoResult();
     this.syncItemSelector();
     this.updateSubmatrixStats();
@@ -751,6 +752,24 @@ class GridVisualizer {
     this.render();
   }
 
+  getHeaderPillRect(item) {
+    const cs = this.cellSize * this.zoom;
+    const headerFontSize = Math.max(9, Math.min(22, cs * 0.28));
+    const headerGap = Math.max(6, cs * 0.16);
+    const label = `${item.name} (${item.rows}×${item.cols})`;
+    let textW = label.length * 6.5;
+    if (this.ctx) {
+      this.ctx.save();
+      this.ctx.font = '600 11px "Inter", system-ui, sans-serif';
+      textW = this.ctx.measureText(label).width;
+      this.ctx.restore();
+    }
+    const pillW = Math.max(96, textW + 20);
+    const pillH = 22;
+    const pillY = -(headerGap + headerFontSize + 10 + pillH);
+    return { label, pillW, pillH, pillY };
+  }
+
   hitTestCanvas(sx, sy) {
     const worldX = (sx - this.panX) / this.zoom;
     const worldY = (sy - this.panY) / this.zoom;
@@ -762,8 +781,8 @@ class GridVisualizer {
       const boardW = item.cols * this.cellSize;
       const boardH = item.rows * this.cellSize;
 
-      const headerW = Math.max(130 / this.zoom, Math.min(boardW, 240 / this.zoom));
-      if (lx >= -2 && lx <= headerW && ly >= -44 / this.zoom && ly <= -18 / this.zoom) {
+      const { pillW, pillH, pillY } = this.getHeaderPillRect(item);
+      if (lx >= -2 / this.zoom && lx <= pillW / this.zoom && ly >= pillY / this.zoom && ly <= (pillY + pillH) / this.zoom) {
         return { type: 'header', itemIdx: ii };
       }
 
@@ -2007,17 +2026,21 @@ class GridVisualizer {
     if (this.hoverInfo && this.items[this.hoverInfo.itemIdx]) {
       const { itemIdx, row, col } = this.hoverInfo;
       const item = this.items[itemIdx];
-      const cell = item.grid[row][col];
-      const isOneIdx = window.App?.isOneIndexed;
-      const rDisp = isOneIdx ? row + 1 : row;
-      const cDisp = isOneIdx ? col + 1 : col;
-      const prefix = this.items.length > 1 ? `${item.name} · ` : '';
-      if (statusCell) statusCell.textContent = `${prefix}(${rDisp}, ${cDisp}) [1D: ${row * item.cols + col}]`;
-      if (statusVal) statusVal.textContent = `Val: ${cell.isWall ? '# (Wall)' : cell.val}`;
-    } else {
-      if (statusCell) statusCell.textContent = this.items.length > 1 ? `${this.activeItem.name} | Cell: -` : `Cell: -`;
-      if (statusVal) statusVal.textContent = `Val: -`;
+      const cell = item.grid[row]?.[col];
+      if (!cell) {
+        this.hoverInfo = null;
+      } else {
+        const isOneIdx = window.App?.isOneIndexed;
+        const rDisp = isOneIdx ? row + 1 : row;
+        const cDisp = isOneIdx ? col + 1 : col;
+        const prefix = this.items.length > 1 ? `${item.name} · ` : '';
+        if (statusCell) statusCell.textContent = `${prefix}(${rDisp}, ${cDisp}) [1D: ${row * item.cols + col}]`;
+        if (statusVal) statusVal.textContent = `Val: ${cell.isWall ? '# (Wall)' : cell.val}`;
+        return;
+      }
     }
+    if (statusCell) statusCell.textContent = this.items.length > 1 ? `${this.activeItem.name} | Cell: -` : `Cell: -`;
+    if (statusVal) statusVal.textContent = `Val: -`;
   }
 
   // ==========================================
@@ -2377,12 +2400,8 @@ class GridVisualizer {
 
   renderItemHeaderPill(item, isActive) {
     this.ctx.save();
-    const label = `${item.name} (${item.rows}×${item.cols})`;
+    const { label, pillW, pillH, pillY } = this.getHeaderPillRect(item);
     this.ctx.font = '600 11px "Inter", system-ui, sans-serif';
-    const textW = this.ctx.measureText(label).width;
-    const pillW = Math.max(96, textW + 20);
-    const pillH = 22;
-    const pillY = -44;
 
     this.ctx.fillStyle = isActive ? '#155dfc' : '#0a0a0a';
     this.ctx.strokeStyle = isActive ? '#3b82f6' : '#262626';
@@ -2630,7 +2649,7 @@ class GridVisualizer {
   }
 
   renderHeaders(item, cs, isOneIdx, isActive) {
-    const headerFontSize = Math.max(9, cs * 0.28);
+    const headerFontSize = Math.max(9, Math.min(22, cs * 0.28));
     const headerFont = `600 ${headerFontSize}px "JetBrains Mono", Menlo, monospace`;
     const headerGap = Math.max(6, cs * 0.16);
     const isChess = item.kind === 'chess';

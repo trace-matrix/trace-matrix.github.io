@@ -630,6 +630,23 @@ class ChessVisualizer {
     this.render();
   }
 
+  getHeaderPillRect(b) {
+    const sz = this.squareSize * this.zoom;
+    const headerFontSize = Math.max(10, Math.min(13, sz * 0.26));
+    const label = `${b.name} (${b.rows}×${b.cols})`;
+    let textW = label.length * 6.5;
+    if (this.ctx) {
+      this.ctx.save();
+      this.ctx.font = '600 11px "Inter", system-ui, sans-serif';
+      textW = this.ctx.measureText(label).width;
+      this.ctx.restore();
+    }
+    const pillW = Math.max(96, textW + 20);
+    const pillH = 22;
+    const pillY = -(6 + headerFontSize + 10 + pillH);
+    return { label, pillW, pillH, pillY };
+  }
+
   /**
    * Maps screen pixel coordinates to either a board's draggable title handle or a specific square.
    */
@@ -645,8 +662,8 @@ class ChessVisualizer {
       const boardH = b.rows * this.squareSize;
 
       // Board title pill drag bar (above file labels)
-      const headerW = Math.max(130 / this.zoom, Math.min(boardW, 240 / this.zoom));
-      if (lx >= -2 && lx <= headerW && ly >= -44 / this.zoom && ly <= -18 / this.zoom) {
+      const { pillW, pillH, pillY } = this.getHeaderPillRect(b);
+      if (lx >= -2 / this.zoom && lx <= pillW / this.zoom && ly >= pillY / this.zoom && ly <= (pillY + pillH) / this.zoom) {
         return { type: 'header', boardIdx: bi };
       }
 
@@ -1918,12 +1935,8 @@ class ChessVisualizer {
 
   renderBoardHeaderPill(b, isActive, boardW) {
     this.ctx.save();
-    const label = `${b.name} (${b.rows}×${b.cols})`;
+    const { label, pillW, pillH, pillY } = this.getHeaderPillRect(b);
     this.ctx.font = '600 11px "Inter", system-ui, sans-serif';
-    const textW = this.ctx.measureText(label).width;
-    const pillW = Math.max(96, textW + 20);
-    const pillH = 22;
-    const pillY = -44;
 
     this.ctx.fillStyle = isActive ? '#155dfc' : '#0a0a0a';
     this.ctx.strokeStyle = isActive ? '#3b82f6' : '#262626';
