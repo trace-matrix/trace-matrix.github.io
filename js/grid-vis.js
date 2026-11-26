@@ -127,8 +127,9 @@ class GridVisualizer {
   // GRID INITIALIZATION & HISTORY (UNDO/REDO)
   // ==========================================
 
-  createEmptyCell(val = 0, source = 'empty') {
-    return { val, type: 'empty', source, color: null, isWall: val === '#' };
+  createEmptyCell(val = '0', source = 'empty') {
+    const strVal = String(val ?? '0');
+    return { val: strVal, type: 'empty', source, color: null, isWall: strVal === '#' };
   }
 
   createItemEntry(rows = 10, cols = 10, offsetX = 0, offsetY = 0, name = null, kind = 'grid') {
@@ -145,7 +146,7 @@ class GridVisualizer {
       offsetX,
       offsetY,
       grid: Array.from({ length: r }, () =>
-        Array.from({ length: c }, () => this.createEmptyCell(0, 'empty'))
+        Array.from({ length: c }, () => this.createEmptyCell('0', 'empty'))
       ),
       submatrix: null,
       selectedCells: null,
@@ -264,7 +265,7 @@ class GridVisualizer {
     }
   }
 
-  initGrid(rows, cols, defaultValue = 0) {
+  initGrid(rows, cols, defaultValue = '0') {
     const item = this.activeItem;
     item.rows = Math.max(1, Math.min(100, rows));
     item.cols = Math.max(1, Math.min(100, cols));
@@ -767,7 +768,7 @@ class GridVisualizer {
     let textW = label.length * 6.5;
     if (this.ctx) {
       this.ctx.save();
-      this.ctx.font = '600 11px "Inter", system-ui, sans-serif';
+      this.ctx.font = '600 11px "JetBrains Mono", Menlo, monospace';
       textW = this.ctx.measureText(label).width;
       this.ctx.restore();
     }
@@ -927,7 +928,7 @@ class GridVisualizer {
   toggleStartCell(r, c) {
     const cell = this.grid[r][c];
     cell.isWall = false;
-    if (cell.val === '#') cell.val = 0;
+    if (cell.val === '#') cell.val = '0';
 
     const idx = this.startCells.findIndex(p => p.r === r && p.c === c);
     if (idx >= 0) {
@@ -943,7 +944,7 @@ class GridVisualizer {
   toggleEndCell(r, c) {
     const cell = this.grid[r][c];
     cell.isWall = false;
-    if (cell.val === '#') cell.val = 0;
+    if (cell.val === '#') cell.val = '0';
 
     if (this.endCell && this.endCell.r === r && this.endCell.c === c) {
       this.endCell = null;
@@ -964,7 +965,7 @@ class GridVisualizer {
         this.endCell = null;
       }
     } else if (cell.val === '#') {
-      cell.val = 0;
+      cell.val = '0';
     }
   }
 
@@ -1205,15 +1206,14 @@ class GridVisualizer {
       if (committed) return;
       committed = true;
       const valStr = input.value.trim();
-      const num = Number(valStr);
-      const finalVal = valStr === '' ? 0 : (!isNaN(num) && Number.isFinite(num) ? num : valStr);
+      const finalVal = valStr === '' ? '0' : valStr;
 
-      if (finalVal !== cell.val) {
+      if (finalVal !== String(cell.val ?? '0')) {
         this.pushUndo();
       }
       cell.val = finalVal;
       cell.type = 'empty';
-      cell.source = 'manual';
+      cell.source = valStr === '' ? 'empty' : 'manual';
       cell.isWall = finalVal === '#';
 
       this.selectedCell = { row, col };
@@ -1263,7 +1263,7 @@ class GridVisualizer {
     this.pushUndo();
     for (let r = 0; r < this.rows; r++) {
       for (let c = 0; c < this.cols; c++) {
-        this.grid[r][c].val = 0;
+        this.grid[r][c].val = '0';
         this.grid[r][c].type = 'empty';
         this.grid[r][c].source = 'empty';
         this.grid[r][c].isWall = false;
@@ -1290,14 +1290,14 @@ class GridVisualizer {
 
     if (targets) {
       for (const { r, c } of targets) {
-        this.grid[r][c].val = Math.floor(Math.random() * 10);
+        this.grid[r][c].val = String(Math.floor(Math.random() * 10));
         this.grid[r][c].isWall = false;
         this.grid[r][c].source = 'manual';
       }
     } else {
       for (let r = 0; r < this.rows; r++) {
         for (let c = 0; c < this.cols; c++) {
-          this.grid[r][c].val = Math.floor(Math.random() * 10);
+          this.grid[r][c].val = String(Math.floor(Math.random() * 10));
           this.grid[r][c].isWall = false;
           this.grid[r][c].source = 'manual';
         }
@@ -1318,14 +1318,14 @@ class GridVisualizer {
       for (let c = 0; c < this.cols; c++) {
         const wall = Math.random() < 0.28;
         this.grid[r][c].isWall = wall;
-        this.grid[r][c].val = wall ? '#' : 0;
+        this.grid[r][c].val = wall ? '#' : '0';
         this.grid[r][c].source = 'manual';
       }
     }
     this.grid[0][0].isWall = false;
-    this.grid[0][0].val = 0;
+    this.grid[0][0].val = '0';
     this.grid[this.rows - 1][this.cols - 1].isWall = false;
-    this.grid[this.rows - 1][this.cols - 1].val = 0;
+    this.grid[this.rows - 1][this.cols - 1].val = '0';
     this.startCells = [{ r: 0, c: 0 }];
     this.endCell = { r: this.rows - 1, c: this.cols - 1 };
     this.algoOverlay = null;
@@ -1348,13 +1348,21 @@ class GridVisualizer {
   }
 
   copyGridCpp() {
-    const hasString = this.grid.some(row => row.some(c => typeof c.val === 'string'));
+    const hasNonInt = this.grid.some(row => row.some(c => c.isWall || !/^-?\d+$/.test(String(c.val ?? '').trim())));
     let out;
-    if (hasString) {
-      const rowsStr = this.grid.map(row => `    "${row.map(c => (c.isWall ? '#' : String(c.val)[0] || '.')).join('')}"`).join(',\n');
-      out = `vector<string> grid = {\n${rowsStr}\n};`;
+    if (hasNonInt) {
+      const allSingleChar = this.grid.every(row =>
+        row.every(c => (c.isWall ? '#' : (String(c.val ?? '') || '.')).length === 1)
+      );
+      if (allSingleChar) {
+        const rowsStr = this.grid.map(row => `    "${row.map(c => (c.isWall ? '#' : String(c.val ?? '') || '.')).join('')}"`).join(',\n');
+        out = `vector<string> grid = {\n${rowsStr}\n};`;
+      } else {
+        const rowsStr = this.grid.map(row => `    {${row.map(c => `"${String(c.isWall ? '#' : (c.val ?? '')).replace(/"/g, '\\"')}"`).join(', ')}}`).join(',\n');
+        out = `vector<vector<string>> grid = {\n${rowsStr}\n};`;
+      }
     } else {
-      const rowsStr = this.grid.map(row => `    {${row.map(c => c.val).join(', ')}}`).join(',\n');
+      const rowsStr = this.grid.map(row => `    {${row.map(c => String(c.val ?? '0')).join(', ')}}`).join(',\n');
       out = `vector<vector<long long>> grid = {\n${rowsStr}\n};`;
     }
     navigator.clipboard?.writeText(out).then(() => {
@@ -1370,9 +1378,14 @@ class GridVisualizer {
     const existingText = batchInput ? batchInput.value : (item.inputText || '');
     const existingLines = existingText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
     const existingTokens = existingLines.map(l => l.split(/[\s,;]+/).filter(t => t.length > 0));
+    const existingFirstLen = existingTokens[0]?.length || 0;
+    const existingLooksLikeCoords =
+      (existingFirstLen === 2 || existingFirstLen === 3) &&
+      existingTokens.every(t => t.length === existingFirstLen && /^-?\d+$/.test(t[0]) && /^-?\d+$/.test(t[1]));
     const looksLikeMatrix = existingLines.length > 0 && (
-      (existingTokens[0].length >= 4 && existingTokens.every(t => t.length === existingTokens[0].length)) ||
-      (existingTokens.length >= 2 && existingTokens[0].length === 2 && existingTokens.slice(1).every(t => t.length >= 4)) ||
+      (existingFirstLen >= 4 && existingTokens.every(t => t.length === existingFirstLen)) ||
+      (existingFirstLen >= 2 && existingTokens.every(t => t.length === existingFirstLen) && !existingLooksLikeCoords) ||
+      (existingTokens.length >= 2 && existingFirstLen === 2 && existingTokens.slice(1).every(t => t.length >= 4)) ||
       existingTokens.every(t => t.length === 1 && t[0].length >= 2 && /[^0-9\-]/.test(t[0]))
     );
 
@@ -1380,7 +1393,8 @@ class GridVisualizer {
     for (let r = 0; r < item.rows; r++) {
       for (let c = 0; c < item.cols; c++) {
         const cell = item.grid[r][c];
-        if (cell.isWall || cell.val !== 0) nonDefaultCount++;
+        const vStr = String(cell.val ?? '0');
+        if (cell.isWall || (vStr !== '0' && vStr !== '')) nonDefaultCount++;
       }
     }
 
@@ -1394,7 +1408,7 @@ class GridVisualizer {
     if (useMatrixFormat && nonDefaultCount > 0) {
       const lines = [];
       for (let r = 0; r < item.rows; r++) {
-        lines.push(item.grid[r].map(c => (c.isWall ? '#' : c.val)).join(' '));
+        lines.push(item.grid[r].map(c => (c.isWall ? '#' : String(c.val ?? '0'))).join(' '));
       }
       text = lines.join('\n');
     } else if (nonDefaultCount > 0) {
@@ -1402,10 +1416,11 @@ class GridVisualizer {
       for (let r = 0; r < item.rows; r++) {
         for (let c = 0; c < item.cols; c++) {
           const cell = item.grid[r][c];
-          if (cell.isWall || cell.val !== 0) {
+          const vStr = String(cell.val ?? '0');
+          if (cell.isWall || (vStr !== '0' && vStr !== '')) {
             const rDisp = window.App ? window.App.getDisplayRow(r, item.rows) : r;
             const cDisp = window.App ? window.App.getDisplayCol(c, item.cols) : c;
-            lines.push(`${rDisp} ${cDisp} ${cell.isWall ? '#' : cell.val}`);
+            lines.push(`${rDisp} ${cDisp} ${cell.isWall ? '#' : vStr}`);
           }
         }
       }
@@ -1421,7 +1436,7 @@ class GridVisualizer {
   resetBatchCells() {
     for (let r = 0; r < this.rows; r++) {
       for (let c = 0; c < this.cols; c++) {
-        this.grid[r][c].val = 0;
+        this.grid[r][c].val = '0';
         this.grid[r][c].type = 'empty';
         this.grid[r][c].source = 'empty';
         this.grid[r][c].isWall = false;
@@ -1432,10 +1447,8 @@ class GridVisualizer {
   }
 
   parseTokenValue(valStr) {
-    const trimmed = valStr.trim();
-    if (trimmed === '') return 0;
-    const num = Number(trimmed);
-    return !isNaN(num) && Number.isFinite(num) ? num : trimmed;
+    const trimmed = String(valStr ?? '').trim();
+    return trimmed === '' ? '0' : trimmed;
   }
 
   applyCompactCharGrid(charRows, showToast = true) {
@@ -1455,18 +1468,10 @@ class GridVisualizer {
         const cell = this.grid[r][c];
         cell.source = 'batch';
         cell.type = 'empty';
-        if (ch === '#') {
-          cell.val = '#';
-          cell.isWall = true;
-        } else if (ch >= '0' && ch <= '9') {
-          cell.val = parseInt(ch, 10);
-          cell.isWall = false;
-        } else {
-          cell.val = ch;
-          cell.isWall = false;
-          if (ch === 'S') this.startCells.push({ r, c });
-          if (ch === 'E' || ch === 'T') this.endCell = { r, c };
-        }
+        cell.val = ch;
+        cell.isWall = ch === '#';
+        if (ch === 'S') this.startCells.push({ r, c });
+        if (ch === 'E' || ch === 'T') this.endCell = { r, c };
         count++;
       }
     }
@@ -1559,10 +1564,13 @@ class GridVisualizer {
 
     const parsedEntries = [];
     const firstRowLen = dataRows[0].length;
+    const looksLikeCoordList =
+      (firstRowLen === 2 || firstRowLen === 3) &&
+      dataRows.every(t => t.length === firstRowLen && intRe.test(t[0]) && intRe.test(t[1]));
     const isUniformMatrix =
       !!headerDim ||
       (this.inputMode === 'matrix' && dataRows.every(t => t.length === firstRowLen)) ||
-      (this.inputMode === 'auto' && firstRowLen >= 4 && dataRows.every(t => t.length === firstRowLen));
+      (this.inputMode === 'auto' && dataRows.every(t => t.length === firstRowLen) && (firstRowLen >= 4 || (firstRowLen >= 2 && !looksLikeCoordList)));
 
     if (isUniformMatrix && this.inputMode !== 'coords') {
       for (let r = 0; r < dataRows.length; r++) {
@@ -1582,7 +1590,7 @@ class GridVisualizer {
         if ((tokens.length === 2 || tokens.length === 3) && intRe.test(tokens[0]) && intRe.test(tokens[1])) {
           const rawR = parseInt(tokens[0], 10);
           const rawC = parseInt(tokens[1], 10);
-          const finalVal = tokens.length === 3 ? this.parseTokenValue(tokens[2]) : 1;
+          const finalVal = tokens.length === 3 ? this.parseTokenValue(tokens[2]) : '1';
           parsedEntries.push({ r: rawR, c: rawC, val: finalVal });
           minR = Math.min(minR, rawR);
           minC = Math.min(minC, rawC);
@@ -1663,7 +1671,7 @@ class GridVisualizer {
         if (preserve && r < oldRows && c < oldCols) {
           row.push(oldGrid[r][c]);
         } else {
-          row.push(this.createEmptyCell(0, 'empty'));
+          row.push(this.createEmptyCell('0', 'empty'));
         }
       }
       this.grid.push(row);
@@ -1911,10 +1919,20 @@ class GridVisualizer {
   // PREFIX SUMS, DIFF ARRAY, KADANE & WINDOW
   // ==========================================
 
+  parseCellNumber(val) {
+    if (typeof val === 'number') return Number.isFinite(val) ? val : null;
+    if (typeof val !== 'string') return null;
+    const trimmed = val.trim();
+    if (trimmed === '' || trimmed === '#') return null;
+    const num = Number(trimmed);
+    return Number.isFinite(num) ? num : null;
+  }
+
   getNumericVal(r, c) {
     const cell = this.grid[r]?.[c];
     if (!cell || cell.isWall) return 0;
-    return typeof cell.val === 'number' && Number.isFinite(cell.val) ? cell.val : 0;
+    const num = this.parseCellNumber(cell.val);
+    return num !== null ? num : 0;
   }
 
   isCellWall(r, c) {
@@ -1963,8 +1981,8 @@ class GridVisualizer {
     for (const { r, c } of coords) {
       const cell = this.grid[r][c];
       if (!this.isCellWall(r, c)) {
-        const cur = typeof cell.val === 'number' && Number.isFinite(cell.val) ? cell.val : 0;
-        cell.val = this.cleanFloat(cur + delta);
+        const cur = this.parseCellNumber(cell.val);
+        cell.val = String(this.cleanFloat((cur !== null ? cur : 0) + delta));
         cell.source = 'manual';
       }
     }
@@ -2119,12 +2137,17 @@ class GridVisualizer {
     for (const { r, c } of coords) {
       const cell = this.grid[r]?.[c];
       if (!cell || this.isCellWall(r, c)) continue;
-      if (typeof cell.val === 'number' && Number.isFinite(cell.val)) {
-        const v = cell.val;
+      const v = this.parseCellNumber(cell.val);
+      if (v !== null) {
         sum += v;
         minVal = Math.min(minVal, v);
         maxVal = Math.max(maxVal, v);
-        if (Number.isSafeInteger(v)) {
+        const rawStr = String(cell.val).trim();
+        if (/^-?\d+$/.test(rawStr)) {
+          const bv = BigInt(rawStr);
+          xorVal ^= bv;
+          gcdVal = this.gcd(gcdVal, bv);
+        } else if (Number.isSafeInteger(v)) {
           xorVal ^= BigInt(v);
           gcdVal = this.gcd(gcdVal, BigInt(v));
         } else {
@@ -2204,7 +2227,7 @@ class GridVisualizer {
     };
 
     const nextGrid = Array.from({ length: newR }, () =>
-      Array.from({ length: newC }, () => this.createEmptyCell(0, 'empty'))
+      Array.from({ length: newC }, () => this.createEmptyCell('0', 'empty'))
     );
     for (let r = 0; r < R; r++) {
       for (let c = 0; c < C; c++) {
@@ -2540,7 +2563,7 @@ class GridVisualizer {
   renderItemHeaderPill(item, isActive) {
     this.ctx.save();
     const { label, pillW, pillH, pillY } = this.getHeaderPillRect(item);
-    this.ctx.font = '600 11px "Inter", system-ui, sans-serif';
+    this.ctx.font = '600 11px "JetBrains Mono", Menlo, monospace';
 
     this.ctx.fillStyle = isActive ? '#155dfc' : '#0a0a0a';
     this.ctx.strokeStyle = isActive ? '#3b82f6' : '#262626';
@@ -2569,8 +2592,8 @@ class GridVisualizer {
       for (let r = 0; r < item.rows; r++) {
         for (let c = 0; c < item.cols; c++) {
           if (item.grid[r][c]?.isWall || item.grid[r][c]?.val === '#') continue;
-          const v = item.grid[r][c]?.val;
-          if (typeof v === 'number') {
+          const v = this.parseCellNumber(item.grid[r][c]?.val);
+          if (v !== null) {
             minVal = Math.min(minVal, v);
             maxVal = Math.max(maxVal, v);
           }
@@ -2610,8 +2633,9 @@ class GridVisualizer {
           ? '#64748b'
           : (isChess ? '#18181b' : '#f1f5f9');
 
-        if (!isWall && this.showHeatmap && typeof cell.val === 'number' && maxVal > minVal) {
-          const ratio = (cell.val - minVal) / (maxVal - minVal);
+        const cellNumVal = this.showHeatmap ? this.parseCellNumber(cell.val) : null;
+        if (!isWall && this.showHeatmap && cellNumVal !== null && maxVal > minVal) {
+          const ratio = (cellNumVal - minVal) / (maxVal - minVal);
           fillColor = `rgba(21, 93, 252, ${0.18 + ratio * 0.72})`;
           textColor = '#ffffff';
         }
@@ -2682,7 +2706,7 @@ class GridVisualizer {
           const textStr = String(displayVal);
           const isGlyph = isChess && Object.values(chessGlyphs).includes(textStr);
           let fontSize = isGlyph ? Math.max(14, cs * 0.62) : Math.max(8, cs * 0.38);
-          this.ctx.font = `${isGlyph ? '' : '600 '}${fontSize}px ${isGlyph ? 'sans-serif' : '"JetBrains Mono", Menlo, monospace'}`;
+          this.ctx.font = `${isGlyph ? '' : '600 '}${fontSize}px ${isGlyph ? '"JetBrains Mono", sans-serif' : '"JetBrains Mono", Menlo, monospace'}`;
           const maxTextWidth = cs * 0.84;
           const measuredWidth = this.ctx.measureText(textStr).width;
           if (!isGlyph && measuredWidth > maxTextWidth && maxTextWidth > 0) {
@@ -2928,7 +2952,9 @@ class GridVisualizer {
             si.kind || 'grid'
           );
           if (si.id) entry.id = si.id;
-          if (Array.isArray(si.grid)) entry.grid = si.grid;
+          if (Array.isArray(si.grid)) {
+            entry.grid = si.grid.map(row => row.map(c => ({ ...c, val: String(c?.val ?? '0') })));
+          }
           if (si.submatrix) entry.submatrix = si.submatrix;
           if (Array.isArray(si.selectedCells)) entry.selectedCells = si.selectedCells;
           if (si.selectedCell) entry.selectedCell = si.selectedCell;
@@ -2944,7 +2970,7 @@ class GridVisualizer {
         this.activeItemIndex = Math.max(0, Math.min(this.items.length - 1, state.activeItemIndex || 0));
       } else if (Array.isArray(state.grid) && state.rows && state.cols) {
         const entry = this.createItemEntry(state.rows, state.cols, 0, 0, 'Grid 1', 'grid');
-        entry.grid = state.grid;
+        entry.grid = state.grid.map(row => row.map(c => ({ ...c, val: String(c?.val ?? '0') })));
         if (state.submatrix) entry.submatrix = state.submatrix;
         if (Array.isArray(state.selectedCells)) entry.selectedCells = state.selectedCells;
         if (state.selectedCell) entry.selectedCell = state.selectedCell;

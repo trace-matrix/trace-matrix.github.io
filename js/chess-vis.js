@@ -637,7 +637,7 @@ class ChessVisualizer {
     let textW = label.length * 6.5;
     if (this.ctx) {
       this.ctx.save();
-      this.ctx.font = '600 11px "Inter", system-ui, sans-serif';
+      this.ctx.font = '600 11px "JetBrains Mono", Menlo, monospace';
       textW = this.ctx.measureText(label).width;
       this.ctx.restore();
     }
@@ -1937,7 +1937,7 @@ class ChessVisualizer {
   renderBoardHeaderPill(b, isActive, boardW) {
     this.ctx.save();
     const { label, pillW, pillH, pillY } = this.getHeaderPillRect(b);
-    this.ctx.font = '600 11px "Inter", system-ui, sans-serif';
+    this.ctx.font = '600 11px "JetBrains Mono", Menlo, monospace';
 
     this.ctx.fillStyle = isActive ? '#155dfc' : '#0a0a0a';
     this.ctx.strokeStyle = isActive ? '#3b82f6' : '#262626';
@@ -1968,7 +1968,7 @@ class ChessVisualizer {
     };
     const symbol = glyphs[p] || p;
     const pieceFontSize = Math.max(16, sz * 0.65);
-    this.ctx.font = `${pieceFontSize}px sans-serif`;
+    this.ctx.font = `${pieceFontSize}px "JetBrains Mono", sans-serif`;
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
     this.ctx.fillStyle = onDarkGrid ? '#f5f5f5' : '#18181b';
