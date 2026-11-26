@@ -39,8 +39,8 @@ class CanvasNotesManager {
 
     const existingInTab = this.notes.filter(n => n.tab === tab);
     const rect = container.getBoundingClientRect();
-    const width = 280;
-    const height = 196;
+    const width = 340;
+    const height = 280;
     const maxX = Math.max(16, (rect.width || 800) - width - 16);
     const maxY = Math.max(16, (rect.height || 600) - height - 16);
     const x = Math.min(maxX, 52 + ((existingInTab.length * 28) % 168));
@@ -49,13 +49,13 @@ class CanvasNotesManager {
     const note = {
       id: this.nextId++,
       tab,
-      title: existingInTab.length === 0 ? 'Notes' : `Note ${existingInTab.length + 1}`,
+      title: existingInTab.length === 0 ? 'Note' : `Note ${existingInTab.length + 1}`,
       text: '',
+      fontSize: 18,
       x,
       y,
       width,
-      height,
-      collapsed: false
+      height
     };
 
     this.notes.push(note);
@@ -86,15 +86,15 @@ class CanvasNotesManager {
   }
 
   mountNoteElement(note, container) {
+    if (!note.fontSize || Number.isNaN(note.fontSize)) note.fontSize = 18;
+
     const card = document.createElement('div');
-    card.className = `canvas-note-card${note.collapsed ? ' collapsed' : ''}`;
+    card.className = 'canvas-note-card';
     card.dataset.noteId = String(note.id);
     card.style.left = `${Math.round(note.x)}px`;
     card.style.top = `${Math.round(note.y)}px`;
-    card.style.width = `${Math.round(note.width || 280)}px`;
-    if (!note.collapsed) {
-      card.style.height = `${Math.round(note.height || 196)}px`;
-    }
+    card.style.width = `${Math.round(note.width || 340)}px`;
+    card.style.height = `${Math.round(note.height || 280)}px`;
     card.style.zIndex = String(++this.zCounter);
 
     // Header Bar
@@ -108,12 +108,12 @@ class CanvasNotesManager {
     const icon = document.createElement('span');
     icon.className = 'canvas-note-icon';
     icon.setAttribute('aria-hidden', 'true');
-    icon.textContent = '✎';
+    icon.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg>`;
 
     const titleInput = document.createElement('input');
     titleInput.type = 'text';
     titleInput.className = 'canvas-note-title';
-    titleInput.value = note.title || 'Notes';
+    titleInput.value = note.title || 'Note';
     titleInput.readOnly = true;
     titleInput.title = 'Drag header to move • Double-click title to rename';
     titleInput.setAttribute('aria-label', 'Note title');
@@ -130,8 +130,8 @@ class CanvasNotesManager {
     titleInput.addEventListener('blur', () => {
       titleInput.readOnly = true;
       if (!titleInput.value.trim()) {
-        titleInput.value = 'Notes';
-        note.title = 'Notes';
+        titleInput.value = 'Note';
+        note.title = 'Note';
         this.saveState();
       }
     });
@@ -149,46 +149,50 @@ class CanvasNotesManager {
     const actions = document.createElement('div');
     actions.className = 'canvas-note-actions';
 
-    const copyBtn = document.createElement('button');
-    copyBtn.type = 'button';
-    copyBtn.className = 'canvas-note-btn';
-    copyBtn.title = 'Copy note text';
-    copyBtn.textContent = 'Copy';
-    copyBtn.addEventListener('click', () => {
-      navigator.clipboard?.writeText(note.text || '').then(() => {
-        window.App?.showToast(`Copied "${note.title || 'Notes'}"`, 'success');
-      });
-    });
+    // Font Size Stepper Pill: [ −  18  + ]
+    const sizePill = document.createElement('div');
+    sizePill.className = 'canvas-note-size-pill';
+    sizePill.title = 'Adjust text size';
 
-    const collapseBtn = document.createElement('button');
-    collapseBtn.type = 'button';
-    collapseBtn.className = 'canvas-note-btn canvas-note-icon-btn';
-    collapseBtn.title = note.collapsed ? 'Expand note' : 'Minimize note';
-    collapseBtn.textContent = note.collapsed ? '+' : '−';
-    collapseBtn.addEventListener('click', () => {
-      note.collapsed = !note.collapsed;
-      card.classList.toggle('collapsed', note.collapsed);
-      if (note.collapsed) {
-        card.style.height = 'auto';
-        collapseBtn.textContent = '+';
-        collapseBtn.title = 'Expand note';
-      } else {
-        card.style.height = `${Math.round(note.height || 196)}px`;
-        collapseBtn.textContent = '−';
-        collapseBtn.title = 'Minimize note';
-      }
+    const decBtn = document.createElement('button');
+    decBtn.type = 'button';
+    decBtn.className = 'canvas-note-step-btn';
+    decBtn.setAttribute('aria-label', 'Decrease font size');
+    decBtn.textContent = '−';
+
+    const sizeVal = document.createElement('span');
+    sizeVal.className = 'canvas-note-size-val';
+    sizeVal.textContent = String(note.fontSize);
+
+    const incBtn = document.createElement('button');
+    incBtn.type = 'button';
+    incBtn.className = 'canvas-note-step-btn';
+    incBtn.setAttribute('aria-label', 'Increase font size');
+    incBtn.textContent = '+';
+
+    const applyFontSize = (nextSize) => {
+      note.fontSize = Math.max(10, Math.min(44, nextSize));
+      sizeVal.textContent = String(note.fontSize);
+      textarea.style.fontSize = `${note.fontSize}px`;
       this.saveState();
-    });
+    };
+
+    decBtn.addEventListener('click', () => applyFontSize(note.fontSize - 1));
+    incBtn.addEventListener('click', () => applyFontSize(note.fontSize + 1));
+
+    sizePill.appendChild(decBtn);
+    sizePill.appendChild(sizeVal);
+    sizePill.appendChild(incBtn);
 
     const closeBtn = document.createElement('button');
     closeBtn.type = 'button';
-    closeBtn.className = 'canvas-note-btn canvas-note-icon-btn canvas-note-close-btn';
+    closeBtn.className = 'canvas-note-close-btn';
     closeBtn.title = 'Delete note';
-    closeBtn.textContent = '×';
+    closeBtn.setAttribute('aria-label', 'Delete note');
+    closeBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
     closeBtn.addEventListener('click', () => this.deleteNote(note.id));
 
-    actions.appendChild(copyBtn);
-    actions.appendChild(collapseBtn);
+    actions.appendChild(sizePill);
     actions.appendChild(closeBtn);
 
     header.appendChild(titleWrap);
@@ -201,49 +205,25 @@ class CanvasNotesManager {
     const textarea = document.createElement('textarea');
     textarea.className = 'canvas-note-textarea';
     textarea.spellcheck = false;
-    textarea.placeholder = 'Write problem notes, constraints, formulas, or edge cases...';
+    textarea.placeholder = 'Write notes...';
     textarea.value = note.text || '';
-
-    const footer = document.createElement('div');
-    footer.className = 'canvas-note-footer';
-
-    const metaSpan = document.createElement('span');
-    metaSpan.className = 'canvas-note-meta';
-    const updateMeta = () => {
-      const txt = textarea.value || '';
-      const lines = txt ? txt.split(/\r?\n/).length : 0;
-      metaSpan.textContent = `${lines} line${lines !== 1 ? 's' : ''} · ${txt.length} chars`;
-    };
-    updateMeta();
-
-    const clearNoteBtn = document.createElement('button');
-    clearNoteBtn.type = 'button';
-    clearNoteBtn.className = 'canvas-note-clear-btn';
-    clearNoteBtn.textContent = 'Clear';
-    clearNoteBtn.title = 'Clear note text';
-    clearNoteBtn.addEventListener('click', () => {
-      if (!textarea.value) return;
-      textarea.value = '';
-      note.text = '';
-      updateMeta();
-      this.saveState();
-      textarea.focus();
-    });
-
-    footer.appendChild(metaSpan);
-    footer.appendChild(clearNoteBtn);
+    textarea.style.fontSize = `${note.fontSize}px`;
 
     textarea.addEventListener('input', () => {
       note.text = textarea.value;
-      updateMeta();
       this.saveState();
     });
 
     body.appendChild(textarea);
 
+    const resizeGrip = document.createElement('span');
+    resizeGrip.className = 'canvas-note-resize-grip';
+    resizeGrip.setAttribute('aria-hidden', 'true');
+    resizeGrip.innerHTML = `<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="11" y1="3" x2="3" y2="11"/><line x1="11" y1="7" x2="7" y2="11"/></svg>`;
+
     card.appendChild(header);
     card.appendChild(body);
-    card.appendChild(footer);
+    card.appendChild(resizeGrip);
 
     // Isolate canvas pointer/wheel/dblclick events from note card
     ['mousedown', 'dblclick', 'wheel', 'contextmenu'].forEach(evtName => {
