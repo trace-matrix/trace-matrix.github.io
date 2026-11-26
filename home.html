@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <title>TraceMatrix — Competitive Programming Matrix, Geometry &amp; Chessboard Visualizer</title>
+  <meta name="description" content="TraceMatrix is a free, zero-lag interactive visualizer built for competitive programmers on Codeforces, AtCoder, LeetCode, CSES, and ICPC. Visualize 2D grids, 2D prefix sums, convex hulls, Pick's theorem, and chessboard BFS instantly.">
+  <meta name="keywords" content="TraceMatrix, competitive programming visualizer, 2D grid visualizer, 2D prefix sum calculator, convex hull visualizer, Pick's theorem calculator, chessboard BFS solver, Codeforces tool, AtCoder visualizer, LeetCode matrix tool">
+  <meta name="author" content="TraceMatrix">
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+  <link rel="canonical" href="https://trace-matrix.github.io/home.html">
+
+  <!-- Open Graph & Twitter -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="TraceMatrix">
+  <meta property="og:url" content="https://trace-matrix.github.io/home.html">
+  <meta property="og:title" content="TraceMatrix — Visual Scratchpad for Competitive Programming">
+  <meta property="og:description" content="Debug 2D grids, prefix sums, Kadane submatrices, coordinate geometry, convex hulls, and chessboard solvers on an obsidian canvas. Free, fast, offline-ready.">
+  <meta property="og:image" content="https://trace-matrix.github.io/og-cover.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="TraceMatrix dark workspace displaying a highlighted 2D Prefix Sum matrix">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="TraceMatrix — Competitive Programming Visualizer">
+  <meta name="twitter:description" content="Interactive 2D matrix, coordinate geometry, convex hull, and chessboard BFS scratchpad built for contest speed.">
+  <meta name="twitter:image" content="https://trace-matrix.github.io/og-cover.png">
+
+  <!-- Icons & Manifest -->
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <link rel="manifest" href="site.webmanifest">
+  <meta name="theme-color" content="#000000">
+
+  <!-- Fonts & Styles -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400..800;1,400..800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/marketing.css">
+
+  <!-- Structured Data: SoftwareApplication + FAQPage + BreadcrumbList -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "SoftwareApplication",
+        "name": "TraceMatrix",
+        "url": "https://trace-matrix.github.io/",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Web Browser (Windows, macOS, Linux, ChromeOS)",
+        "isAccessibleForFree": true,
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "screenshot": "https://trace-matrix.github.io/og-cover.png",
+        "description": "Free interactive competitive programming visualizer for 2D matrices, 2D prefix sums, BFS/Dijkstra pathfinding, coordinate geometry, convex hulls, Pick's theorem, and chessboard problem solving."
+      },
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "TraceMatrix App",
+            "item": "https://trace-matrix.github.io/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Overview & Documentation",
+            "item": "https://trace-matrix.github.io/home.html"
+          }
+        ]
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Is TraceMatrix free and safe to use during competitive programming contests?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. TraceMatrix is completely free, open-source, requires zero login or telemetry, and runs 100% locally inside your browser using HTML5 Canvas with offline persistence."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Does TraceMatrix support 0-indexed, 1-indexed, and reversed [N..0] grid coordinates?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. You can switch between 0-indexed, 1-indexed, and Reversed [N..0] row and column labels globally from the top navigation bar without losing grid or board data."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Can I enter string characters, leading zeros like 007, and walls (#) inside grid cells?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. TraceMatrix stores every grid cell as a string so leading zeros, characters like . # S E T, words, and 64-bit numbers stay exact, while prefix sums and 64-bit XOR/GCD continue computing accurately on numeric cells."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Can I keep algorithmic notes or formulas alongside my grid and chessboard?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. Click Note in any tab to place draggable, resizable, minimizable obsidian note cards directly on the canvas with adjustable font size and automatic persistence."
+            }
+          }
+        ]
+      }
+    ]
+  }
+  </script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+
+  <header class="site-header">
+    <div class="container header-inner">
+      <a href="home.html" class="brand-link" aria-current="page">
+        <span class="brand-mark" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <line x1="3" y1="9" x2="21" y2="9"/>
+            <line x1="3" y1="15" x2="21" y2="15"/>
+            <line x1="9" y1="3" x2="9" y2="21"/>
+            <line x1="15" y1="3" x2="15" y2="21"/>
+          </svg>
+        </span>
+        <span>TraceMatrix</span>
+      </a>
+
+      <nav class="site-nav" aria-label="Primary">
+        <ul>
+          <li><a href="home.html" aria-current="page">Overview</a></li>
+          <li><a href="matrix-grid-visualizer.html">Matrix &amp; Grid</a></li>
+          <li><a href="geometry-visualizer.html">Geometry</a></li>
+          <li><a href="chessboard-solver.html">Chess &amp; Solvers</a></li>
+          <li><a href="#faq">FAQ</a></li>
+        </ul>
+        <a href="index.html" class="btn btn-primary btn-sm">Launch Workspace</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main-content">
+    <!-- Hero Section -->
+    <section class="hero-section">
+      <div class="container hero-grid">
+        <div>
+          <div class="eyebrow">
+            <span class="eyebrow-dot" aria-hidden="true"></span>
+            <span>Competitive Programming Visualizer</span>
+          </div>
+          <h1>Trace Matrices, Geometry &amp; Chessboards Without Friction.</h1>
+          <p class="hero-lead">
+            TraceMatrix replaces paper scratchpads during Codeforces, AtCoder, LeetCode, CSES, and ICPC rounds. Paste raw sample I/O, inspect 2D prefix sums, compute convex hulls, trace knight BFS paths, and pin Notes on one obsidian canvas.
+          </p>
+          <div class="hero-actions">
+            <a href="index.html" class="btn btn-primary">Launch TraceMatrix App</a>
+            <a href="#modules" class="btn btn-secondary">Explore Tool Modules</a>
+          </div>
+          <div class="ledger-strip" aria-label="Key technical specifications">
+            <div class="ledger-item">
+              <span class="ledger-val">100 × 100</span>
+              <span class="ledger-label">String &amp; Int Grids</span>
+            </div>
+            <div class="ledger-item">
+              <span class="ledger-val">O(1) Query</span>
+              <span class="ledger-label">2D Prefix, XOR, GCD</span>
+            </div>
+            <div class="ledger-item">
+              <span class="ledger-val">N × M</span>
+              <span class="ledger-label">Knight BFS &amp; N-Queens</span>
+            </div>
+            <div class="ledger-item">
+              <span class="ledger-val">0 KB Deps</span>
+              <span class="ledger-label">100% Client Offline</span>
+            </div>
+          </div>
+        </div>
+
+        <figure class="monograph-figure">
+          <div class="figure-bar">
+            <span>FIG 01 — TRACEMATRIX WORKSPACE PREVIEW</span>
+            <span class="figure-pill">Obsidian + Cobalt</span>
+          </div>
+          <div class="figure-canvas">
+            <svg viewBox="0 0 560 360" role="img" aria-labelledby="hero-fig-title hero-fig-desc">
+              <title id="hero-fig-title">TraceMatrix interactive multi-canvas diagram</title>
+              <desc id="hero-fig-desc">Illustration of TraceMatrix displaying a 4 by 4 matrix with a highlighted 2 by 2 submatrix selection, an adjacent coordinate geometry hull plot, and an overlapping minimized Note box.</desc>
+              <rect x="0" y="0" width="560" height="360" fill="#000000"/>
+              <!-- Submatrix Grid Card -->
+              <rect x="18" y="24" width="268" height="248" rx="8" fill="#070707" stroke="#262626"/>
+              <rect x="32" y="38" width="98" height="22" rx="5" fill="#155dfc"/>
+              <text x="81" y="53" fill="#ffffff" font-family="JetBrains Mono, monospace" font-size="11" text-anchor="middle" font-weight="700">Grid 1 (4×4)</text>
+              <g font-family="JetBrains Mono, monospace" font-size="14" font-weight="700" text-anchor="middle">
+                <rect x="34" y="76" width="52" height="40" rx="5" fill="#141414" stroke="#262626"/><text x="60" y="101" fill="#f5f5f5">0</text>
+                <rect x="94" y="76" width="52" height="40" rx="5" fill="#10255a" stroke="#3b82f6" stroke-width="1.5"/><text x="120" y="101" fill="#ffffff">42</text>
+                <rect x="154" y="76" width="52" height="40" rx="5" fill="#10255a" stroke="#3b82f6" stroke-width="1.5"/><text x="180" y="101" fill="#ffffff">99</text>
+                <rect x="214" y="76" width="52" height="40" rx="5" fill="#0a0a0a" stroke="#262626"/><text x="240" y="101" fill="#71717a">#</text>
+                <rect x="34" y="124" width="52" height="40" rx="5" fill="#141414" stroke="#262626"/><text x="60" y="149" fill="#f5f5f5">0</text>
+                <rect x="94" y="124" width="52" height="40" rx="5" fill="#10255a" stroke="#3b82f6" stroke-width="1.5"/><text x="120" y="149" fill="#ffffff">12</text>
+                <rect x="154" y="124" width="52" height="40" rx="5" fill="#10255a" stroke="#3b82f6" stroke-width="1.5"/><text x="180" y="149" fill="#ffffff">8</text>
+                <rect x="214" y="124" width="52" height="40" rx="5" fill="#141414" stroke="#262626"/><text x="240" y="149" fill="#f5f5f5">5</text>
+                <rect x="34" y="172" width="52" height="40" rx="5" fill="#141414" stroke="#262626"/><text x="60" y="197" fill="#34d399">S</text>
+                <rect x="94" y="172" width="52" height="40" rx="5" fill="#141414" stroke="#262626"/><text x="120" y="197" fill="#f5f5f5">3</text>
+                <rect x="154" y="172" width="52" height="40" rx="5" fill="#141414" stroke="#262626"/><text x="180" y="197" fill="#f5f5f5">007</text>
+                <rect x="214" y="172" width="52" height="40" rx="5" fill="#141414" stroke="#262626"/><text x="240" y="197" fill="#fb7185">T</text>
+              </g>
+              <text x="34" y="246" fill="#a1a1aa" font-family="JetBrains Mono, monospace" font-size="11">Sum: 161  XOR: 75  GCD: 1</text>
+
+              <!-- Geometry Hull Plot Card -->
+              <rect x="304" y="24" width="238" height="248" rx="8" fill="#070707" stroke="#262626"/>
+              <rect x="318" y="38" width="118" height="22" rx="5" fill="#0d0d0f" stroke="#262626"/>
+              <text x="377" y="53" fill="#e4e4e7" font-family="JetBrains Mono, monospace" font-size="11" text-anchor="middle">Convex Hull</text>
+              <line x1="324" y1="158" x2="524" y2="158" stroke="#1f1f23" stroke-width="1"/>
+              <line x1="424" y1="74" x2="424" y2="246" stroke="#1f1f23" stroke-width="1"/>
+              <polygon points="348,186 382,92 492,108 506,196 420,232" fill="rgba(21,93,252,0.16)" stroke="#3b82f6" stroke-width="2"/>
+              <circle cx="348" cy="186" r="4.5" fill="#60a5fa"/>
+              <circle cx="382" cy="92" r="4.5" fill="#60a5fa"/>
+              <circle cx="492" cy="108" r="4.5" fill="#60a5fa"/>
+              <circle cx="506" cy="196" r="4.5" fill="#60a5fa"/>
+              <circle cx="420" cy="232" r="4.5" fill="#60a5fa"/>
+              <circle cx="430" cy="144" r="4" fill="#34d399"/>
+              <circle cx="395" cy="168" r="4" fill="#34d399"/>
+              <text x="318" y="256" fill="#a1a1aa" font-family="JetBrains Mono, monospace" font-size="11">Hull V:5 · Pick&apos;s I: 24</text>
+
+              <!-- Canvas Note Box -->
+              <rect x="64" y="286" width="432" height="54" rx="8" fill="#070707" stroke="#3f3f46"/>
+              <text x="82" y="309" fill="#e4e4e7" font-family="JetBrains Mono, monospace" font-size="11" font-weight="600">Note · DP[i][j] = min(top, left) + g[i][j]</text>
+              <text x="82" y="327" fill="#8b8f98" font-family="JetBrains Mono, monospace" font-size="10">Draggable, resizable, minimizable scratchpad notes</text>
+            </svg>
+          </div>
+          <figcaption>TraceMatrix runs multi-grid matrices, coordinate geometry, chessboard solvers, and floating Notes side by side in your browser.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- Core Modules Section -->
+    <section id="modules" class="editorial-section">
+      <div class="container">
+        <div class="section-head">
+          <span class="section-index">01 · Core Modules</span>
+          <h2>Three Workspaces. One Unified Obsidian Canvas.</h2>
+          <p>Switch seamlessly between 2D Matrices, Computational Geometry, and Algorithmic Chessboards—or combine multiple grids and boards on the same infinite canvas.</p>
+        </div>
+
+        <div class="cards-grid">
+          <article class="module-card">
+            <div class="module-top">
+              <div class="module-num">
+                <span>MODULE 01</span>
+                <span class="module-tag">100 × 100</span>
+              </div>
+              <h3>Matrix &amp; 2D Grid Visualizer</h3>
+              <p>Inspect grids with 0-based, 1-based, or reversed <code>[N..0]</code> indices while keeping every cell value as an exact string.</p>
+              <ul class="feature-list">
+                <li>2D Prefix Sums &amp; Difference Matrix overlays</li>
+                <li>2D Kadane Max-Sum Submatrix finder</li>
+                <li>64-bit Bitwise XOR, GCD, Min, Max &amp; Avg</li>
+                <li>4-Dir / 8-Dir BFS, Dijkstra &amp; Rotate / Flip</li>
+              </ul>
+            </div>
+            <div class="module-actions">
+              <a href="matrix-grid-visualizer.html" class="btn btn-secondary btn-sm">Read Guide</a>
+              <a href="index.html?mode=grid" class="btn btn-primary btn-sm">Open Matrix Tool</a>
+            </div>
+          </article>
+
+          <article class="module-card">
+            <div class="module-top">
+              <div class="module-num">
+                <span>MODULE 02</span>
+                <span class="module-tag">Cartesian / Lattice</span>
+              </div>
+              <h3>Points &amp; Geometry Plane</h3>
+              <p>Plot coordinate lists directly from problem statements with zoomable grid snapping, vectors, polygons, and circles.</p>
+              <ul class="feature-list">
+                <li>Andrew&apos;s Monotone Chain Convex Hull</li>
+                <li>Shoelace Polygon Area &amp; Pick&apos;s Theorem</li>
+                <li>Closest Pair (L<sub>1</sub>, L<sub>2</sub>, L<sub>∞</sub>) &amp; Intersections</li>
+                <li>One-click C++ Point struct array export</li>
+              </ul>
+            </div>
+            <div class="module-actions">
+              <a href="geometry-visualizer.html" class="btn btn-secondary btn-sm">Read Guide</a>
+              <a href="index.html?mode=point" class="btn btn-primary btn-sm">Open Geometry Tool</a>
+            </div>
+          </article>
+
+          <article class="module-card">
+            <div class="module-top">
+              <div class="module-num">
+                <span>MODULE 03</span>
+                <span class="module-tag">Any N × M Board</span>
+              </div>
+              <h3>Chess &amp; Algorithmic Solvers</h3>
+              <p>Place Knights, Queens, Rooks, Bishops, Kings, Pawns, and obstacles (<code>#</code>) across unlimited boards on one canvas.</p>
+              <ul class="feature-list">
+                <li>Piece BFS distance map &amp; shortest path trace</li>
+                <li>Attacked &amp; Safe Squares conflict heatmap</li>
+                <li>N-Queens solution browser &amp; Max N-Rooks</li>
+                <li>Warnsdorff Knight&apos;s Tour generator</li>
+              </ul>
+            </div>
+            <div class="module-actions">
+              <a href="chessboard-solver.html" class="btn btn-secondary btn-sm">Read Guide</a>
+              <a href="index.html?mode=chess" class="btn btn-primary btn-sm">Open Chess Tool</a>
+            </div>
+          </article>
+
+          <article class="module-card">
+            <div class="module-top">
+              <div class="module-num">
+                <span>MODULE 04</span>
+                <span class="module-tag">Always On</span>
+              </div>
+              <h3>Canvas Notes &amp; Live Two-Way I/O</h3>
+              <p>Pin clean obsidian scratchpad Notes alongside grids and preserve every edit across browser reloads with zero setup.</p>
+              <ul class="feature-list">
+                <li>Two-way sync between Canvas cells &amp; INPUT box</li>
+                <li>Data-preserving Grid &amp; Chessboard resize</li>
+                <li>Resizable, minimizable Note cards (10–44px text)</li>
+                <li>Exports <code>vector&lt;string&gt;</code> &amp; <code>vector&lt;long long&gt;</code></li>
+              </ul>
+            </div>
+            <div class="module-actions">
+              <a href="index.html" class="btn btn-primary btn-sm">Try Workspace Now</a>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- Comparison Benchmark Table -->
+    <section id="compare" class="editorial-section">
+      <div class="container">
+        <div class="section-head">
+          <span class="section-index">02 · Built For Contest Speed</span>
+          <h2>Why Programmers Choose TraceMatrix Over Spreadsheets &amp; Paper</h2>
+          <p>Generic tools waste precious contest minutes reformatting test cases. TraceMatrix understands competitive programming I/O natively.</p>
+        </div>
+
+        <div class="table-scroll" role="region" aria-labelledby="compare-caption" tabindex="0">
+          <table class="spec-table">
+            <caption id="compare-caption">Comparison between TraceMatrix, spreadsheet software, and manual paper sketches for algorithm debugging.</caption>
+            <thead>
+              <tr>
+                <th scope="col">Capability</th>
+                <th scope="col">TraceMatrix</th>
+                <th scope="col">Spreadsheets</th>
+                <th scope="col">Paper / Whiteboard</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Sample Judge I/O Paste</th>
+                <td class="spec-highlight">1-paste Auto parser (<code>R C</code>, triplets, chars)</td>
+                <td>Manual column splitting</td>
+                <td>Rewrite by hand</td>
+              </tr>
+              <tr>
+                <th scope="row">2D Prefix Sum / Kadane / XOR</th>
+                <td class="spec-highlight">Instant drag &amp; 64-bit BigInt stats</td>
+                <td>Manual formulas per query</td>
+                <td>Prone to off-by-one arithmetic</td>
+              </tr>
+              <tr>
+                <th scope="row">Index Convention Switching</th>
+                <td class="spec-highlight">0-idx, 1-idx, and Reversed <code>[N..0]</code></td>
+                <td>Fixed 1-based letters &amp; rows</td>
+                <td>Full erase &amp; relabel</td>
+              </tr>
+              <tr>
+                <th scope="row">Geometry &amp; Chess Solvers</th>
+                <td class="spec-highlight">Convex Hull, Pick&apos;s, Knight BFS, N-Queens</td>
+                <td>Not available</td>
+                <td>Slow manual checking</td>
+              </tr>
+              <tr>
+                <th scope="row">Load Time &amp; Privacy</th>
+                <td class="spec-highlight">Zero dependencies · Runs 100% offline</td>
+                <td>Cloud login / heavy scripts</td>
+                <td>No persistent redo or copy</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4-Step Workflow -->
+    <section class="editorial-section">
+      <div class="container">
+        <div class="section-head">
+          <span class="section-index">03 · Contest Workflow</span>
+          <h2>From Sample Test Case to Accepted Solution in Four Steps.</h2>
+        </div>
+
+        <ol class="steps-list" role="list">
+          <li class="step-card">
+            <h3>Paste Any Problem Input</h3>
+            <p>Drop coordinate triplets (<code>r c val</code>), <code>.#S.E</code> mazes, point lists, or string grids straight into the INPUT box.</p>
+          </li>
+          <li class="step-card">
+            <h3>Match Problem Indexing</h3>
+            <p>Toggle <code>0-idx</code>, <code>1-idx</code>, or <code>Rev</code> to match inverted bottom-to-top coordinate systems immediately.</p>
+          </li>
+          <li class="step-card">
+            <h3>Run Overlays &amp; Solvers</h3>
+            <p>Drag submatrices for 2D sums, inspect Dijkstra/BFS distances, compute convex hulls, or test Knight/N-Queens attacks.</p>
+          </li>
+          <li class="step-card">
+            <h3>Annotate &amp; Export Code</h3>
+            <p>Jot state transitions inside a Canvas Note card and copy ready-to-compile C++20 vectors or convex hull templates.</p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- FAQ Section -->
+    <section id="faq" class="editorial-section">
+      <div class="container">
+        <div class="section-head">
+          <span class="section-index">04 · Frequently Asked Questions</span>
+          <h2>Questions Competitive Programmers Ask Most</h2>
+        </div>
+
+        <div class="faq-list">
+          <details class="faq-item" open>
+            <summary>Is TraceMatrix free to use without creating an account?</summary>
+            <div class="faq-answer">
+              <p>Yes. TraceMatrix is 100% free, requires no registration or internet backend, and saves your grids, boards, points, and notes directly inside browser <code>localStorage</code>.</p>
+            </div>
+          </details>
+
+          <details class="faq-item">
+            <summary>How does TraceMatrix handle strings like leading zeros (<code>007</code>) or walls (<code>#</code>)?</summary>
+            <div class="faq-answer">
+              <p>Every grid cell stores its input as an exact string, preserving leading zeros, words, single characters, and obstacle tokens like <code>#</code>, while numeric solvers and 64-bit XOR/GCD statistics automatically evaluate numeric tokens.</p>
+            </div>
+          </details>
+
+          <details class="faq-item">
+            <summary>Can I place multiple grids and chessboards together on the same canvas?</summary>
+            <div class="faq-answer">
+              <p>Yes. Click <code>+ Grid</code> or <code>+ Chess</code> in the sidebar to inspect test case steps side by side, clone boards before mutating them, and resize dimensions without wiping existing cell data.</p>
+            </div>
+          </details>
+
+          <details class="faq-item">
+            <summary>Which keyboard shortcuts speed up debugging during live contests?</summary>
+            <div class="faq-answer">
+              <p>Press <code>1</code>, <code>2</code>, or <code>3</code> to switch visualizer modes, <code>I</code> to toggle 0-based vs 1-based indexing, <code>F</code> to fit the active canvas, <code>Ctrl+Z</code> / <code>Ctrl+Y</code> to undo/redo, and <code>?</code> to open the shortcuts reference.</p>
+            </div>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- Final CTA Banner -->
+    <section class="editorial-section">
+      <div class="container">
+        <div class="module-card">
+          <div class="split-grid">
+            <div class="module-top">
+              <span class="section-index">Ready When The Clock Starts</span>
+              <h2>Open TraceMatrix in Your Next Contest or Practice Session.</h2>
+              <p>Bookmark <code>https://trace-matrix.github.io</code> for instant visual debugging across grids, geometry, and chessboards.</p>
+            </div>
+            <div class="hero-actions">
+              <a href="index.html" class="btn btn-primary">Launch TraceMatrix Now</a>
+              <a href="matrix-grid-visualizer.html" class="btn btn-secondary">Explore Grid Guide</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div>
+          <a href="home.html" class="brand-link">
+            <span class="brand-mark" aria-hidden="true">⊞</span>
+            <span>TraceMatrix</span>
+          </a>
+          <p class="hero-lead">Classical, zero-dependency visual scratchpad for Competitive Programming.</p>
+        </div>
+        <nav aria-label="Footer Visualizer Guides">
+          <h2 class="footer-heading">Guides</h2>
+          <ul class="footer-links">
+            <li><a href="home.html">Overview &amp; FAQ</a></li>
+            <li><a href="matrix-grid-visualizer.html">Matrix &amp; 2D Prefix Sums</a></li>
+            <li><a href="geometry-visualizer.html">Convex Hull &amp; Pick&apos;s Theorem</a></li>
+            <li><a href="chessboard-solver.html">Chessboard BFS &amp; N-Queens</a></li>
+          </ul>
+        </nav>
+        <nav aria-label="Footer Quick Launch">
+          <h2 class="footer-heading">Quick Launch</h2>
+          <ul class="footer-links">
+            <li><a href="index.html?mode=grid">Launch Matrix Visualizer</a></li>
+            <li><a href="index.html?mode=point">Launch Geometry Plane</a></li>
+            <li><a href="index.html?mode=chess">Launch Chessboard Solver</a></li>
+            <li><a href="https://github.com/trace-matrix/trace-matrix.github.io">GitHub Repository</a></li>
+          </ul>
+        </nav>
+      </div>
+      <div class="footer-bottom">
+        <span>TraceMatrix · https://trace-matrix.github.io</span>
+        <span>Free · Offline-Ready · JetBrains Mono Obsidian Edition</span>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <title>Convex Hull, Pick's Theorem &amp; Geometry Visualizer — TraceMatrix</title>
+  <meta name="description" content="Online coordinate geometry visualizer for competitive programming: Andrew's Monotone Chain Convex Hull, Shoelace polygon area, Pick's Theorem interior lattice points, CCW cross product, and closest pair of points.">
+  <meta name="keywords" content="convex hull visualizer online, Pick's theorem calculator, shoelace formula polygon area visualizer, coordinate geometry plotter, cross product orientation CCW, closest pair points visualizer">
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  <link rel="canonical" href="https://trace-matrix.github.io/geometry-visualizer.html">
+
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="TraceMatrix">
+  <meta property="og:url" content="https://trace-matrix.github.io/geometry-visualizer.html">
+  <meta property="og:title" content="Convex Hull, Pick's Theorem &amp; Geometry Plane — TraceMatrix">
+  <meta property="og:description" content="Interactive infinite Cartesian &amp; screen geometry canvas with lattice snap, convex hull, polygon area, and segment intersection detection.">
+  <meta property="og:image" content="https://trace-matrix.github.io/og-cover.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Convex Hull &amp; Geometry Visualizer — TraceMatrix">
+  <meta name="twitter:description" content="Plot coordinates, run Monotone Chain Convex Hull, and compute Shoelace + Pick's theorem live.">
+  <meta name="twitter:image" content="https://trace-matrix.github.io/og-cover.png">
+
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="manifest" href="site.webmanifest">
+  <meta name="theme-color" content="#000000">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400..800;1,400..800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/marketing.css">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "TechArticle",
+        "headline": "Convex Hull, Pick's Theorem & Coordinate Geometry Visualizer",
+        "url": "https://trace-matrix.github.io/geometry-visualizer.html",
+        "image": "https://trace-matrix.github.io/og-cover.png",
+        "description": "Guide to TraceMatrix's interactive Computational Geometry plane covering Andrew's Monotone Chain, Pick's Theorem, Shoelace formula, and segment intersections.",
+        "isPartOf": {
+          "@type": "WebSite",
+          "name": "TraceMatrix",
+          "url": "https://trace-matrix.github.io/"
+        }
+      },
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "TraceMatrix Overview", "item": "https://trace-matrix.github.io/home.html" },
+          { "@type": "ListItem", "position": 2, "name": "Points & Geometry Visualizer", "item": "https://trace-matrix.github.io/geometry-visualizer.html" }
+        ]
+      }
+    ]
+  }
+  </script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+
+  <header class="site-header">
+    <div class="container header-inner">
+      <a href="home.html" class="brand-link">
+        <span class="brand-mark" aria-hidden="true">✛</span>
+        <span>TraceMatrix</span>
+      </a>
+      <nav class="site-nav" aria-label="Primary">
+        <ul>
+          <li><a href="home.html">Overview</a></li>
+          <li><a href="matrix-grid-visualizer.html">Matrix &amp; Grid</a></li>
+          <li><a href="geometry-visualizer.html" aria-current="page">Geometry</a></li>
+          <li><a href="chessboard-solver.html">Chess &amp; Solvers</a></li>
+        </ul>
+        <a href="index.html?mode=point" class="btn btn-primary btn-sm">Open Geometry Tool</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main-content">
+    <section class="hero-section">
+      <div class="container">
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+          <ol>
+            <li><a href="home.html">Overview</a></li>
+            <li aria-current="page">Points &amp; Geometry Visualizer</li>
+          </ol>
+        </nav>
+
+        <div class="hero-grid">
+          <div>
+            <div class="eyebrow">
+              <span class="eyebrow-dot" aria-hidden="true"></span>
+              <span>Module 02 · Computational Geometry</span>
+            </div>
+            <h1>Plot Points, Convex Hulls &amp; Lattice Polygons With Precision.</h1>
+            <p class="hero-lead">
+              Debug tricky edge cases with collinear points, negative coordinates, and axis inversions on an infinite lattice-snapped Cartesian or Screen Y-down plane.
+            </p>
+            <div class="hero-actions">
+              <a href="index.html?mode=point" class="btn btn-primary">Launch Geometry Plane</a>
+              <a href="#cpp-hull" class="btn btn-secondary">View Convex Hull Snippet</a>
+            </div>
+          </div>
+
+          <figure class="monograph-figure">
+            <div class="figure-bar">
+              <span>PICK&apos;S THEOREM &amp; CROSS PRODUCT</span>
+              <span class="figure-pill">Integer Exact</span>
+            </div>
+            <div class="figure-canvas">
+              <div class="formula-card">
+                Area = I + B / 2 - 1 &nbsp;&nbsp;|&nbsp;&nbsp; B = sum gcd(|dx|, |dy|)<br>
+                cross(A, B, C) = (Bx - Ax)(Cy - Ay) - (By - Ay)(Cx - Ax)
+              </div>
+            </div>
+            <figcaption>Compute exact interior lattice points (I), boundary lattice points (B), signed polygon area, and CCW turn classifications.</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="editorial-section">
+      <div class="container">
+        <div class="section-head">
+          <span class="section-index">01 · Built-in Geometry Algorithms</span>
+          <h2>Solve Computational Geometry Without Guessing Coordinates</h2>
+        </div>
+
+        <div class="cards-grid">
+          <article class="module-card">
+            <div class="module-top">
+              <h3>Andrew&apos;s Monotone Chain Hull</h3>
+              <p>Automatically computes upper and lower chains, outputs perimeter and Shoelace area, and highlights exact hull vertices on the coordinate grid.</p>
+            </div>
+          </article>
+          <article class="module-card">
+            <div class="module-top">
+              <h3>Segment Intersections &amp; Closest Pair</h3>
+              <p>Test line segments for exact intersections, draw vectors and circles, and find closest point pairs under Euclidean (L<sub>2</sub>), Manhattan (L<sub>1</sub>), and Chebyshev (L<sub>∞</sub>) metrics.</p>
+            </div>
+          </article>
+          <article class="module-card">
+            <div class="module-top">
+              <h3>Cartesian vs Matrix Y-Axis + Notes</h3>
+              <p>Flip Y-up vs Y-down conventions seamlessly, snap points to integer lattice coordinates, export C++ <code>Point</code> arrays, and pin floating Notes on canvas.</p>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="cpp-hull" class="editorial-section">
+      <div class="container split-grid">
+        <div>
+          <span class="section-index">02 · Reference Template</span>
+          <h2>Andrew&apos;s Monotone Chain Convex Hull (C++20)</h2>
+          <p class="hero-lead">Visualize every step of the lower and upper hull passes right inside TraceMatrix Geometry mode.</p>
+          <div class="hero-actions">
+            <a href="index.html?mode=point" class="btn btn-primary">Plot Points Live</a>
+          </div>
+        </div>
+
+        <div class="code-panel">
+          <div class="code-caption" id="geom-code-cap">C++20 · O(N log N) Monotone Chain &amp; Pick&apos;s Boundary</div>
+          <pre role="region" aria-labelledby="geom-code-cap" tabindex="0"><code>struct Point {
+    long long x, y;
+    bool operator&lt;(const Point&amp; o) const {
+        return x &lt; o.x || (x == o.x &amp;&amp; y &lt; o.y);
+    }
+};
+
+long long cross(const Point&amp; a, const Point&amp; b, const Point&amp; c) {
+    return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+}
+
+vector&lt;Point&gt; convex_hull(vector&lt;Point&gt; pts) {
+    sort(pts.begin(), pts.end());
+    vector&lt;Point&gt; h;
+    for (int phase = 0; phase &lt; 2; ++phase) {
+        size_t start = h.size();
+        for (const auto&amp; p : pts) {
+            while (h.size() &gt;= start + 2 &amp;&amp; cross(h[h.size()-2], h.back(), p) &lt;= 0)
+                h.pop_back();
+            h.push_back(p);
+        }
+        h.pop_back();
+        reverse(pts.begin(), pts.end());
+    }
+    return h;
+}</code></pre>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div>
+          <a href="home.html" class="brand-link">
+            <span class="brand-mark" aria-hidden="true">✛</span>
+            <span>TraceMatrix</span>
+          </a>
+          <p class="hero-lead">TraceMatrix Geometry Documentation.</p>
+        </div>
+        <nav aria-label="Footer Guides">
+          <h2 class="footer-heading">Guides</h2>
+          <ul class="footer-links">
+            <li><a href="home.html">Overview &amp; FAQ</a></li>
+            <li><a href="matrix-grid-visualizer.html">Matrix &amp; 2D Prefix Sums</a></li>
+            <li><a href="chessboard-solver.html">Chessboard BFS &amp; N-Queens</a></li>
+          </ul>
+        </nav>
+        <nav aria-label="Footer Launch">
+          <h2 class="footer-heading">Launch App</h2>
+          <ul class="footer-links">
+            <li><a href="index.html?mode=point">Open Points &amp; Geometry Tab</a></li>
+            <li><a href="index.html">Open Full Workspace</a></li>
+          </ul>
+        </nav>
+      </div>
+      <div class="footer-bottom">
+        <span>TraceMatrix · https://trace-matrix.github.io</span>
+        <a href="home.html">Back to Overview</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

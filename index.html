@@ -6,6 +6,57 @@
   <meta name="color-scheme" content="dark">
   <title>TraceMatrix — Competitive Programming Matrix, Geometry & Chess Visualizer</title>
   <meta name="description" content="A fast, clean, interactive visualizer for competitive programming: 2D Matrix & Grids, 2D Prefix Sums, BFS Pathfinding, Coordinate Geometry, Convex Hull, and Chessboard problem solving.">
+  <meta name="keywords" content="TraceMatrix, competitive programming visualizer, 2D matrix visualizer, 2D prefix sum calculator, 2D Kadane visualizer, convex hull visualizer, Pick's theorem calculator, chessboard BFS solver, N-Queens visualizer, Codeforces visualizer, LeetCode matrix tool">
+  <meta name="author" content="TraceMatrix">
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+  <link rel="canonical" href="https://trace-matrix.github.io/">
+
+  <!-- Open Graph & Social Discovery -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="TraceMatrix">
+  <meta property="og:url" content="https://trace-matrix.github.io/">
+  <meta property="og:title" content="TraceMatrix — Competitive Programming Matrix, Geometry & Chess Visualizer">
+  <meta property="og:description" content="Zero-lag obsidian scratchpad for Competitive Programmers: 100×100 String & Int Grids, 2D Prefix Sums, Convex Hull, Pick's Theorem, Chessboard BFS & Notes.">
+  <meta property="og:image" content="https://trace-matrix.github.io/og-cover.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="TraceMatrix dark workspace showing a highlighted 2D Prefix Sum matrix">
+
+  <!-- Twitter Cards -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="TraceMatrix — Competitive Programming Visualizer">
+  <meta name="twitter:description" content="Interactive obsidian workspace for 2D grids, 2D prefix sums, coordinate geometry, convex hull, and chessboard solvers.">
+  <meta name="twitter:image" content="https://trace-matrix.github.io/og-cover.png">
+
+  <!-- Structured Data (JSON-LD) -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "TraceMatrix",
+    "url": "https://trace-matrix.github.io/",
+    "mainEntityOfPage": "https://trace-matrix.github.io/home.html",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Any",
+    "browserRequirements": "Requires HTML5 Canvas and modern JavaScript",
+    "isAccessibleForFree": true,
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "screenshot": "https://trace-matrix.github.io/og-cover.png",
+    "description": "Interactive competitive programming visualizer for 2D matrices, 2D prefix sums, BFS/Dijkstra/Kadane, coordinate geometry, convex hulls, Pick's theorem, and chessboard problem solving.",
+    "featureList": [
+      "100x100 String and Numeric Matrix Visualizer with Multi-Grid Canvas",
+      "2D Prefix Sums, Difference Arrays, 2D Kadane, and BFS/Dijkstra Pathfinding",
+      "0-indexed, 1-indexed, and Reversed [N..0] Coordinate Indexing",
+      "Infinite Coordinate Geometry Plane with Convex Hull, Pick's Theorem, and Segment Intersections",
+      "Arbitrary NxM Chessboard with Knight BFS, Attacked/Safe Map, N-Queens, and N-Rooks Solvers",
+      "Draggable, Resizable, Minimizable Persistent Canvas Notes"
+    ]
+  }
+  </script>
   
   <!-- Favicon & App Icons -->
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
@@ -67,6 +118,9 @@
           <button type="button" id="btn-idx-1" class="btn-idx" data-idx="1">1-idx</button>
           <button type="button" id="btn-idx-rev" class="btn-idx" data-rev-idx-btn title="Reverse Row &amp; Column Indices ([0..N] ↔ [N..0])" aria-pressed="false">Rev</button>
         </div>
+
+        <!-- Guide / Marketing Overview Link -->
+        <a href="home.html" class="header-guide-link" title="TraceMatrix Documentation, Features &amp; Algorithm Guides" aria-label="Overview and Guides">Guide</a>
 
         <!-- Shortcuts Button -->
         <button type="button" class="icon-btn" id="btn-shortcuts" title="Keyboard Shortcuts (?)" aria-label="Keyboard Shortcuts">
@@ -816,5 +870,17 @@ ll boundary_lattice_points(const vector&lt;Point&gt;&amp; p) {
   <script src="js/notes.js"></script>
   <script src="js/cp-snippets.js"></script>
   <script src="js/app.js"></script>
+  <noscript>
+    <div style="padding: 2rem; max-width: 56rem; margin: 0 auto; color: #f5f5f5; font-family: monospace;">
+      <h1>TraceMatrix — Competitive Programming Visualizer</h1>
+      <p>TraceMatrix requires JavaScript enabled to run the interactive HTML5 Canvas workspace. Explore full documentation and guides below:</p>
+      <ul>
+        <li><a href="home.html">TraceMatrix Overview &amp; Documentation</a></li>
+        <li><a href="matrix-grid-visualizer.html">2D Matrix &amp; Grid Visualizer Guide</a></li>
+        <li><a href="geometry-visualizer.html">Points, Convex Hull &amp; Pick&apos;s Theorem Guide</a></li>
+        <li><a href="chessboard-solver.html">Chessboard BFS, N-Queens &amp; N-Rooks Solver Guide</a></li>
+      </ul>
+    </div>
+  </noscript>
 </body>
 </html>

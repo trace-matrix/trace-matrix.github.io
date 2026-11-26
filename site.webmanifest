@@ -1,6 +1,9 @@
 {
-  "name": "TraceMatrix — CP Visualizer",
+  "name": "TraceMatrix — Competitive Programming Visualizer",
   "short_name": "TraceMatrix",
+  "description": "Fast interactive obsidian visualizer for Competitive Programming: 2D Matrix & Prefix Sums, Coordinate Geometry & Convex Hull, and Chessboard BFS & N-Queens solvers.",
+  "start_url": "/",
+  "scope": "/",
   "icons": [
     {
       "src": "favicon-192.png",
@@ -13,7 +16,7 @@
       "type": "image/svg+xml"
     }
   ],
-  "theme_color": "#0a0e17",
-  "background_color": "#0a0e17",
+  "theme_color": "#000000",
+  "background_color": "#000000",
   "display": "standalone"
 }

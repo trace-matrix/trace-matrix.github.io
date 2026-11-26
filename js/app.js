@@ -398,58 +398,65 @@ class AppCoordinator {
   loadState() {
     try {
       const raw = localStorage.getItem('tracematrix_app_state');
-      if (!raw) return;
-      const state = JSON.parse(raw);
-
-      if (typeof state.isOneIndexed === 'boolean') {
-        const btn0 = document.getElementById('btn-idx-0');
-        const btn1 = document.getElementById('btn-idx-1');
-        this.isOneIndexed = state.isOneIndexed;
-        if (btn0) btn0.classList.toggle('active', !this.isOneIndexed);
-        if (btn1) btn1.classList.toggle('active', this.isOneIndexed);
-      }
-
-      if (typeof state.isReversedIndex === 'boolean') {
-        this.isReversedIndex = state.isReversedIndex;
-        document.querySelectorAll('[data-rev-idx-btn]').forEach(btn => {
-          btn.classList.toggle('active', this.isReversedIndex);
-          btn.setAttribute('aria-pressed', this.isReversedIndex ? 'true' : 'false');
-        });
-      }
-
-      if (typeof state.isOneIndexed === 'boolean' || typeof state.isReversedIndex === 'boolean') {
-        if (window.gridVis) {
-          window.gridVis.syncBatchInputFromGrid();
-          window.gridVis.updateSubmatrixStats();
-          window.gridVis.updateStatusPill();
-          window.gridVis.render();
+      const state = raw ? JSON.parse(raw) : null;
+      if (state) {
+        if (typeof state.isOneIndexed === 'boolean') {
+          const btn0 = document.getElementById('btn-idx-0');
+          const btn1 = document.getElementById('btn-idx-1');
+          this.isOneIndexed = state.isOneIndexed;
+          if (btn0) btn0.classList.toggle('active', !this.isOneIndexed);
+          if (btn1) btn1.classList.toggle('active', this.isOneIndexed);
         }
-        if (window.chessVis) {
-          window.chessVis.updateStatusPill();
-          window.chessVis.render();
-        }
-      }
 
-      if (Array.isArray(state.collapsedSidebars)) {
-        state.collapsedSidebars.forEach(id => {
-          const sidebar = document.getElementById(id);
-          const btn = document.querySelector(`[data-toggle-sidebar="${id}"]`);
-          if (sidebar) {
-            sidebar.classList.add('collapsed');
-            if (btn) {
-              const svg = btn.querySelector('svg');
-              if (svg) svg.style.transform = 'rotate(180deg)';
-              btn.title = 'Expand Sidebar';
-            }
+        if (typeof state.isReversedIndex === 'boolean') {
+          this.isReversedIndex = state.isReversedIndex;
+          document.querySelectorAll('[data-rev-idx-btn]').forEach(btn => {
+            btn.classList.toggle('active', this.isReversedIndex);
+            btn.setAttribute('aria-pressed', this.isReversedIndex ? 'true' : 'false');
+          });
+        }
+
+        if (typeof state.isOneIndexed === 'boolean' || typeof state.isReversedIndex === 'boolean') {
+          if (window.gridVis) {
+            window.gridVis.syncBatchInputFromGrid();
+            window.gridVis.updateSubmatrixStats();
+            window.gridVis.updateStatusPill();
+            window.gridVis.render();
           }
-        });
-      }
+          if (window.chessVis) {
+            window.chessVis.updateStatusPill();
+            window.chessVis.render();
+          }
+        }
 
-      if (state.currentTab && state.currentTab !== 'grid') {
-        this.selectTabById(`tab-${state.currentTab}`);
+        if (Array.isArray(state.collapsedSidebars)) {
+          state.collapsedSidebars.forEach(id => {
+            const sidebar = document.getElementById(id);
+            const btn = document.querySelector(`[data-toggle-sidebar="${id}"]`);
+            if (sidebar) {
+              sidebar.classList.add('collapsed');
+              if (btn) {
+                const svg = btn.querySelector('svg');
+                if (svg) svg.style.transform = 'rotate(180deg)';
+                btn.title = 'Expand Sidebar';
+              }
+            }
+          });
+        }
+
+        if (state.currentTab && state.currentTab !== 'grid') {
+          this.selectTabById(`tab-${state.currentTab}`);
+        }
       }
     } catch (e) {
       console.warn('Failed to load app state from localStorage', e);
+    }
+
+    // URL deep-link override (?mode=grid|point|chess or #grid|#point|#chess)
+    const params = new URLSearchParams(window.location.search);
+    const urlMode = (params.get('mode') || window.location.hash.replace('#', '')).toLowerCase();
+    if (['grid', 'point', 'chess'].includes(urlMode)) {
+      this.selectTabById(`tab-${urlMode}`);
     }
   }
 }

@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <title>2D Matrix &amp; Prefix Sum Visualizer — TraceMatrix</title>
+  <meta name="description" content="Online 2D matrix visualizer and 2D prefix sum calculator for competitive programming. Supports 100x100 string grids, 2D Kadane, difference arrays, 64-bit XOR/GCD, BFS/Dijkstra, and reversed [N..0] coordinates.">
+  <meta name="keywords" content="2D matrix visualizer, 2D prefix sum calculator, 2D Kadane algorithm visualizer, grid BFS Dijkstra visualizer, difference array 2D, reverse index matrix, string matrix tool">
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  <link rel="canonical" href="https://trace-matrix.github.io/matrix-grid-visualizer.html">
+
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="TraceMatrix">
+  <meta property="og:url" content="https://trace-matrix.github.io/matrix-grid-visualizer.html">
+  <meta property="og:title" content="2D Matrix, Prefix Sum &amp; Grid Pathfinding Visualizer — TraceMatrix">
+  <meta property="og:description" content="Paste test cases, toggle 0-idx/1-idx/Rev coordinates, inspect O(1) 2D prefix sums, run 2D Kadane, and trace BFS/Dijkstra paths.">
+  <meta property="og:image" content="https://trace-matrix.github.io/og-cover.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="2D Matrix &amp; Prefix Sum Visualizer — TraceMatrix">
+  <meta name="twitter:description" content="Interactive 100×100 string &amp; numeric grid scratchpad for Competitive Programming.">
+  <meta name="twitter:image" content="https://trace-matrix.github.io/og-cover.png">
+
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="manifest" href="site.webmanifest">
+  <meta name="theme-color" content="#000000">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400..800;1,400..800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/marketing.css">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "TechArticle",
+        "headline": "2D Matrix, Prefix Sum & Grid Pathfinding Visualizer",
+        "url": "https://trace-matrix.github.io/matrix-grid-visualizer.html",
+        "image": "https://trace-matrix.github.io/og-cover.png",
+        "description": "Guide and tool reference for TraceMatrix's 2D Matrix & Grid Visualizer covering 2D prefix sums, 2D Kadane, string matrices, and reversed indexing.",
+        "isPartOf": {
+          "@type": "WebSite",
+          "name": "TraceMatrix",
+          "url": "https://trace-matrix.github.io/"
+        }
+      },
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "TraceMatrix Overview", "item": "https://trace-matrix.github.io/home.html" },
+          { "@type": "ListItem", "position": 2, "name": "Matrix & Grid Visualizer", "item": "https://trace-matrix.github.io/matrix-grid-visualizer.html" }
+        ]
+      }
+    ]
+  }
+  </script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+
+  <header class="site-header">
+    <div class="container header-inner">
+      <a href="home.html" class="brand-link">
+        <span class="brand-mark" aria-hidden="true">⊞</span>
+        <span>TraceMatrix</span>
+      </a>
+      <nav class="site-nav" aria-label="Primary">
+        <ul>
+          <li><a href="home.html">Overview</a></li>
+          <li><a href="matrix-grid-visualizer.html" aria-current="page">Matrix &amp; Grid</a></li>
+          <li><a href="geometry-visualizer.html">Geometry</a></li>
+          <li><a href="chessboard-solver.html">Chess &amp; Solvers</a></li>
+        </ul>
+        <a href="index.html?mode=grid" class="btn btn-primary btn-sm">Open Matrix Tool</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main-content">
+    <section class="hero-section">
+      <div class="container">
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+          <ol>
+            <li><a href="home.html">Overview</a></li>
+            <li aria-current="page">Matrix &amp; Grid Visualizer</li>
+          </ol>
+        </nav>
+
+        <div class="hero-grid">
+          <div>
+            <div class="eyebrow">
+              <span class="eyebrow-dot" aria-hidden="true"></span>
+              <span>Module 01 · Matrix &amp; Grid</span>
+            </div>
+            <h1>Interactive 2D Matrix, Prefix Sum &amp; Grid Visualizer.</h1>
+            <p class="hero-lead">
+              Visualize up to 100×100 string or numeric grids directly in your browser. Inspect 2D submatrices, toggle reversed <code>[N..0]</code> row/column coordinates, run 2D Kadane and Dijkstra, and sync cells live with judge I/O.
+            </p>
+            <div class="hero-actions">
+              <a href="index.html?mode=grid" class="btn btn-primary">Launch Matrix &amp; Grid Mode</a>
+              <a href="#cpp-prefix" class="btn btn-secondary">View C++ Prefix Template</a>
+            </div>
+          </div>
+
+          <figure class="monograph-figure">
+            <div class="figure-bar">
+              <span>2D INCLUSION-EXCLUSION PREFIX SUM</span>
+              <span class="figure-pill">O(1) Query</span>
+            </div>
+            <div class="figure-canvas">
+              <div class="formula-card">
+                Sum(r1, c1 .. r2, c2) = P[r2+1][c2+1] - P[r1][c2+1] - P[r2+1][c1] + P[r1][c1]
+              </div>
+            </div>
+            <figcaption>TraceMatrix overlays live prefix table values directly onto any cell rectangle without altering underlying cell values.</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="editorial-section">
+      <div class="container">
+        <div class="section-head">
+          <span class="section-index">01 · Supported Capabilities</span>
+          <h2>Built For Every 2D Dynamic Programming &amp; Grid Problem</h2>
+        </div>
+
+        <div class="cards-grid">
+          <article class="module-card">
+            <div class="module-top">
+              <h3>String-Preserving Cells &amp; Two-Way I/O</h3>
+              <p>Edit cells directly on the canvas or type in <code>INPUT</code>. Values like <code>007</code>, <code>#</code>, <code>S</code>, <code>T</code>, and long numbers stay intact as strings, while resizing rows/columns preserves existing data.</p>
+            </div>
+          </article>
+          <article class="module-card">
+            <div class="module-top">
+              <h3>64-Bit Range Stats &amp; 2D Kadane</h3>
+              <p>Select rectangles, rows, columns, diagonals, or anti-diagonals to compute exact sum, min, max, average, arbitrary-precision BigInt XOR/GCD, and wall-aware 2D Kadane max submatrix sum.</p>
+            </div>
+          </article>
+          <article class="module-card">
+            <div class="module-top">
+              <h3>BFS, Dijkstra, Components &amp; Transforms</h3>
+              <p>Run 4-dir or 8-dir shortest-path BFS/Dijkstra around <code>#</code> obstacles, color connected islands, view DP min-path sums, or rotate 90°, transpose, and flip matrices in one click.</p>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="cpp-prefix" class="editorial-section">
+      <div class="container split-grid">
+        <div>
+          <span class="section-index">02 · Reference Template</span>
+          <h2>Ready-to-Use C++20 2D Prefix Sum Struct</h2>
+          <p class="hero-lead">Verify your recurrence table visually in TraceMatrix before submitting with this 1-indexed prefix sum helper.</p>
+          <div class="hero-actions">
+            <a href="index.html?mode=grid" class="btn btn-primary">Test Matrix Live</a>
+          </div>
+        </div>
+
+        <div class="code-panel">
+          <div class="code-caption" id="matrix-code-cap">C++20 · O(R·C) Build &amp; O(1) Submatrix Query</div>
+          <pre role="region" aria-labelledby="matrix-code-cap" tabindex="0"><code>struct PrefixSum2D {
+    int n, m;
+    vector&lt;vector&lt;long long&gt;&gt; p;
+
+    PrefixSum2D(const vector&lt;vector&lt;long long&gt;&gt;&amp; a)
+        : n(a.size()), m(a[0].size()), p(n + 1, vector&lt;long long&gt;(m + 1, 0)) {
+        for (int r = 0; r &lt; n; ++r) {
+            for (int c = 0; c &lt; m; ++c) {
+                p[r + 1][c + 1] = a[r][c] + p[r][c + 1] + p[r + 1][c] - p[r][c];
+            }
+        }
+    }
+
+    // Inclusive query for 0-indexed [r1..r2] x [c1..c2]
+    long long query(int r1, int c1, int r2, int c2) const {
+        return p[r2 + 1][c2 + 1] - p[r1][c2 + 1] - p[r2 + 1][c1] + p[r1][c1];
+    }
+};</code></pre>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div>
+          <a href="home.html" class="brand-link">
+            <span class="brand-mark" aria-hidden="true">⊞</span>
+            <span>TraceMatrix</span>
+          </a>
+          <p class="hero-lead">TraceMatrix Matrix &amp; Grid Documentation.</p>
+        </div>
+        <nav aria-label="Footer Guides">
+          <h2 class="footer-heading">Guides</h2>
+          <ul class="footer-links">
+            <li><a href="home.html">Overview &amp; FAQ</a></li>
+            <li><a href="geometry-visualizer.html">Convex Hull &amp; Pick&apos;s Theorem</a></li>
+            <li><a href="chessboard-solver.html">Chessboard BFS &amp; N-Queens</a></li>
+          </ul>
+        </nav>
+        <nav aria-label="Footer Launch">
+          <h2 class="footer-heading">Launch App</h2>
+          <ul class="footer-links">
+            <li><a href="index.html?mode=grid">Open Matrix &amp; Grid Tab</a></li>
+            <li><a href="index.html">Open Full Workspace</a></li>
+          </ul>
+        </nav>
+      </div>
+      <div class="footer-bottom">
+        <span>TraceMatrix · https://trace-matrix.github.io</span>
+        <a href="home.html">Back to Overview</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>
