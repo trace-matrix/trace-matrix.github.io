@@ -918,13 +918,14 @@ class ChessVisualizer {
 
   getSquareNotation(r, c, boardObj = this.activeBoard) {
     const isOneIdx = window.App?.isOneIndexed;
+    const isRev = !!window.App?.isReversedIndex;
     if (boardObj.kind !== 'grid' && boardObj.rows <= 26 && boardObj.cols <= 26 && !isOneIdx) {
-      const file = String.fromCharCode(97 + c);
-      const rank = boardObj.rows - r;
+      const file = String.fromCharCode(97 + (isRev ? (boardObj.cols - 1 - c) : c));
+      const rank = isRev ? (r + 1) : (boardObj.rows - r);
       return `${file}${rank}`;
     }
-    const rDisp = isOneIdx ? r + 1 : r;
-    const cDisp = isOneIdx ? c + 1 : c;
+    const rDisp = window.App ? window.App.getDisplayRow(r, boardObj.rows) : (isOneIdx ? r + 1 : r);
+    const cDisp = window.App ? window.App.getDisplayCol(c, boardObj.cols) : (isOneIdx ? c + 1 : c);
     return `(${rDisp},${cDisp})`;
   }
 
@@ -1982,12 +1983,13 @@ class ChessVisualizer {
     this.ctx.font = `600 ${headerFontSize}px "JetBrains Mono", Menlo, monospace`;
     this.ctx.fillStyle = isActive ? '#d4d4d8' : '#71717a';
 
+    const isRev = !!window.App?.isReversedIndex;
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'bottom';
     for (let c = 0; c < b.cols; c++) {
-      let label = isOneIdx ? c + 1 : c;
+      let label = window.App ? window.App.getDisplayCol(c, b.cols) : (isOneIdx ? c + 1 : c);
       if (b.kind !== 'grid' && b.rows <= 26 && b.cols <= 26 && !isOneIdx) {
-        label = String.fromCharCode(97 + c);
+        label = String.fromCharCode(97 + (isRev ? (b.cols - 1 - c) : c));
       }
       this.ctx.fillText(label, c * sz + sz / 2, -6);
     }
@@ -1995,9 +1997,9 @@ class ChessVisualizer {
     this.ctx.textAlign = 'right';
     this.ctx.textBaseline = 'middle';
     for (let r = 0; r < b.rows; r++) {
-      let label = isOneIdx ? r + 1 : r;
+      let label = window.App ? window.App.getDisplayRow(r, b.rows) : (isOneIdx ? r + 1 : r);
       if (b.kind !== 'grid' && b.rows <= 26 && b.cols <= 26 && !isOneIdx) {
-        label = b.rows - r;
+        label = isRev ? (r + 1) : (b.rows - r);
       }
       this.ctx.fillText(label, -9, r * sz + sz / 2);
     }

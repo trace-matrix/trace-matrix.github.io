@@ -6,6 +6,7 @@
 class AppCoordinator {
   constructor() {
     this.isOneIndexed = false;
+    this.isReversedIndex = false;
     this.currentTab = 'grid';
 
     this.initTabs();
@@ -148,18 +149,34 @@ class AppCoordinator {
   }
 
   // ==========================================
-  // INDEXING MODE TOGGLE (0-idx vs 1-idx)
+  // INDEXING MODE TOGGLE (0-idx / 1-idx / Rev)
   // ==========================================
+  getDisplayRow(r, rows) {
+    const offset = this.isOneIndexed ? 1 : 0;
+    return this.isReversedIndex ? (rows - 1 - r + offset) : (r + offset);
+  }
+
+  getDisplayCol(c, cols) {
+    const offset = this.isOneIndexed ? 1 : 0;
+    return this.isReversedIndex ? (cols - 1 - c + offset) : (c + offset);
+  }
+
+  fromDisplayRow(dispR, rows) {
+    const offset = this.isOneIndexed ? 1 : 0;
+    return this.isReversedIndex ? (rows - 1 - (dispR - offset)) : (dispR - offset);
+  }
+
+  fromDisplayCol(dispC, cols) {
+    const offset = this.isOneIndexed ? 1 : 0;
+    return this.isReversedIndex ? (cols - 1 - (dispC - offset)) : (dispC - offset);
+  }
+
   initIndexToggle() {
     const btn0 = document.getElementById('btn-idx-0');
     const btn1 = document.getElementById('btn-idx-1');
+    const revBtns = Array.from(document.querySelectorAll('[data-rev-idx-btn]'));
 
-    const setIndexMode = (oneIndexed) => {
-      this.isOneIndexed = oneIndexed;
-      if (btn0) btn0.classList.toggle('active', !oneIndexed);
-      if (btn1) btn1.classList.toggle('active', oneIndexed);
-      this.saveState();
-
+    const refreshVisualizersForIndex = () => {
       if (window.gridVis) {
         window.gridVis.syncBatchInputFromGrid();
         window.gridVis.updateSubmatrixStats();
@@ -170,14 +187,39 @@ class AppCoordinator {
         window.chessVis.updateStatusPill();
         window.chessVis.render();
       }
+    };
 
+    const setIndexMode = (oneIndexed) => {
+      this.isOneIndexed = oneIndexed;
+      if (btn0) btn0.classList.toggle('active', !oneIndexed);
+      if (btn1) btn1.classList.toggle('active', oneIndexed);
+      this.saveState();
+      refreshVisualizersForIndex();
       this.showToast(`Coordinates set to ${oneIndexed ? '1-indexed' : '0-indexed'}`, 'info');
+    };
+
+    const setReversedMode = (reversed) => {
+      this.isReversedIndex = !!reversed;
+      revBtns.forEach(btn => {
+        btn.classList.toggle('active', this.isReversedIndex);
+        btn.setAttribute('aria-pressed', this.isReversedIndex ? 'true' : 'false');
+      });
+      this.saveState();
+      refreshVisualizersForIndex();
+      this.showToast(
+        this.isReversedIndex ? 'Row & column indices reversed ([N..0])' : 'Row & column indices normal ([0..N])',
+        'info'
+      );
     };
 
     btn0?.addEventListener('click', () => setIndexMode(false));
     btn1?.addEventListener('click', () => setIndexMode(true));
+    revBtns.forEach(btn => {
+      btn.addEventListener('click', () => setReversedMode(!this.isReversedIndex));
+    });
 
     this.toggleIndexMode = () => setIndexMode(!this.isOneIndexed);
+    this.toggleReverseIndex = () => setReversedMode(!this.isReversedIndex);
   }
 
   // ==========================================
@@ -344,6 +386,7 @@ class AppCoordinator {
       const state = {
         currentTab: this.currentTab,
         isOneIndexed: this.isOneIndexed,
+        isReversedIndex: this.isReversedIndex,
         collapsedSidebars: collapsed
       };
       localStorage.setItem('tracematrix_app_state', JSON.stringify(state));
@@ -364,7 +407,19 @@ class AppCoordinator {
         this.isOneIndexed = state.isOneIndexed;
         if (btn0) btn0.classList.toggle('active', !this.isOneIndexed);
         if (btn1) btn1.classList.toggle('active', this.isOneIndexed);
+      }
+
+      if (typeof state.isReversedIndex === 'boolean') {
+        this.isReversedIndex = state.isReversedIndex;
+        document.querySelectorAll('[data-rev-idx-btn]').forEach(btn => {
+          btn.classList.toggle('active', this.isReversedIndex);
+          btn.setAttribute('aria-pressed', this.isReversedIndex ? 'true' : 'false');
+        });
+      }
+
+      if (typeof state.isOneIndexed === 'boolean' || typeof state.isReversedIndex === 'boolean') {
         if (window.gridVis) {
+          window.gridVis.syncBatchInputFromGrid();
           window.gridVis.updateSubmatrixStats();
           window.gridVis.updateStatusPill();
           window.gridVis.render();

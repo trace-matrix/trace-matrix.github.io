@@ -1398,13 +1398,14 @@ class GridVisualizer {
       }
       text = lines.join('\n');
     } else if (nonDefaultCount > 0) {
-      const offset = window.App?.isOneIndexed ? 1 : 0;
       const lines = [];
       for (let r = 0; r < item.rows; r++) {
         for (let c = 0; c < item.cols; c++) {
           const cell = item.grid[r][c];
           if (cell.isWall || cell.val !== 0) {
-            lines.push(`${r + offset} ${c + offset} ${cell.isWall ? '#' : cell.val}`);
+            const rDisp = window.App ? window.App.getDisplayRow(r, item.rows) : r;
+            const cDisp = window.App ? window.App.getDisplayCol(c, item.cols) : c;
+            lines.push(`${rDisp} ${cDisp} ${cell.isWall ? '#' : cell.val}`);
           }
         }
       }
@@ -1622,16 +1623,19 @@ class GridVisualizer {
       this.resizeGridPreserving(neededRows, neededCols, true);
     }
 
+    const isRev = !isUniformMatrix && window.App?.isReversedIndex;
     let updatedCount = 0;
     for (const entry of parsedEntries) {
-      if (entry.r >= 0 && entry.r < this.rows && entry.c >= 0 && entry.c < this.cols) {
-        const cell = this.grid[entry.r][entry.c];
+      const rr = isRev ? (this.rows - 1 - entry.r) : entry.r;
+      const cc = isRev ? (this.cols - 1 - entry.c) : entry.c;
+      if (rr >= 0 && rr < this.rows && cc >= 0 && cc < this.cols) {
+        const cell = this.grid[rr][cc];
         cell.val = entry.val;
         cell.type = 'empty';
         cell.source = 'batch';
         cell.isWall = entry.val === '#';
-        if (entry.val === 'S') this.startCells.push({ r: entry.r, c: entry.c });
-        if (entry.val === 'E' || entry.val === 'T') this.endCell = { r: entry.r, c: entry.c };
+        if (entry.val === 'S') this.startCells.push({ r: rr, c: cc });
+        if (entry.val === 'E' || entry.val === 'T') this.endCell = { r: rr, c: cc };
         updatedCount++;
       }
     }
@@ -1770,15 +1774,14 @@ class GridVisualizer {
     const inpC2 = document.getElementById('qs-c2');
     if (!inpR1 || !inpC1 || !inpR2 || !inpC2) return;
 
-    const offset = window.App?.isOneIndexed ? 1 : 0;
     if (this.submatrix) {
-      inpR1.value = this.submatrix.r1 + offset;
-      inpC1.value = this.submatrix.c1 + offset;
-      inpR2.value = this.submatrix.r2 + offset;
-      inpC2.value = this.submatrix.c2 + offset;
+      inpR1.value = window.App ? window.App.getDisplayRow(this.submatrix.r1, this.rows) : this.submatrix.r1;
+      inpC1.value = window.App ? window.App.getDisplayCol(this.submatrix.c1, this.cols) : this.submatrix.c1;
+      inpR2.value = window.App ? window.App.getDisplayRow(this.submatrix.r2, this.rows) : this.submatrix.r2;
+      inpC2.value = window.App ? window.App.getDisplayCol(this.submatrix.c2, this.cols) : this.submatrix.c2;
     } else if (this.selectedCells && this.selectedCells.length > 0) {
-      inpR1.value = this.selectedCells[0].r + offset;
-      inpC1.value = this.selectedCells[0].c + offset;
+      inpR1.value = window.App ? window.App.getDisplayRow(this.selectedCells[0].r, this.rows) : this.selectedCells[0].r;
+      inpC1.value = window.App ? window.App.getDisplayCol(this.selectedCells[0].c, this.cols) : this.selectedCells[0].c;
     }
   }
 
@@ -1797,10 +1800,15 @@ class GridVisualizer {
       return Number.isNaN(n) ? fallback : n;
     };
 
-    const r1Raw = parseIdx(inpR1, offset) - offset;
-    const c1Raw = parseIdx(inpC1, offset) - offset;
-    const r2Raw = parseIdx(inpR2, offset) - offset;
-    const c2Raw = parseIdx(inpC2, offset) - offset;
+    const r1Disp = parseIdx(inpR1, offset);
+    const c1Disp = parseIdx(inpC1, offset);
+    const r2Disp = parseIdx(inpR2, offset);
+    const c2Disp = parseIdx(inpC2, offset);
+
+    const r1Raw = window.App ? window.App.fromDisplayRow(r1Disp, this.rows) : (r1Disp - offset);
+    const c1Raw = window.App ? window.App.fromDisplayCol(c1Disp, this.cols) : (c1Disp - offset);
+    const r2Raw = window.App ? window.App.fromDisplayRow(r2Disp, this.rows) : (r2Disp - offset);
+    const c2Raw = window.App ? window.App.fromDisplayCol(c2Disp, this.cols) : (c2Disp - offset);
 
     if (this.selectionMode === 'diag' || this.selectionMode === 'antidiag') {
       const r = clampR(r1Raw);
@@ -2082,13 +2090,19 @@ class GridVisualizer {
       const { r1, c1, r2, c2 } = this.submatrix;
       const height = r2 - r1 + 1;
       const width = c2 - c1 + 1;
+      const r1Disp = window.App ? window.App.getDisplayRow(r1, this.rows) : (r1 + offset);
+      const c1Disp = window.App ? window.App.getDisplayCol(c1, this.cols) : (c1 + offset);
+      const r2Disp = window.App ? window.App.getDisplayRow(r2, this.rows) : (r2 + offset);
+      const c2Disp = window.App ? window.App.getDisplayCol(c2, this.cols) : (c2 + offset);
       if (rangeText) {
-        rangeText.textContent = `[${r1 + offset},${c1 + offset}]x[${r2 + offset},${c2 + offset}]    (${height}×${width})`;
+        rangeText.textContent = `[${r1Disp},${c1Disp}]x[${r2Disp},${c2Disp}]    (${height}×${width})`;
       }
     } else if (this.selectedCells && this.selectedCells.length > 0) {
       const first = this.selectedCells[0];
       const prefix = this.selectionMode === 'antidiag' ? 'Anti' : 'Diag';
-      const val = this.selectionMode === 'antidiag' ? (first.r + first.c + offset * 2) : (first.r - first.c);
+      const rDisp = window.App ? window.App.getDisplayRow(first.r, this.rows) : (first.r + offset);
+      const cDisp = window.App ? window.App.getDisplayCol(first.c, this.cols) : (first.c + offset);
+      const val = this.selectionMode === 'antidiag' ? (rDisp + cDisp) : (rDisp - cDisp);
       if (rangeText) {
         rangeText.textContent = `${prefix}=${val}    (${this.selectedCells.length} cells)`;
       }
@@ -2153,8 +2167,8 @@ class GridVisualizer {
         this.hoverInfo = null;
       } else {
         const isOneIdx = window.App?.isOneIndexed;
-        const rDisp = isOneIdx ? row + 1 : row;
-        const cDisp = isOneIdx ? col + 1 : col;
+        const rDisp = window.App ? window.App.getDisplayRow(row, item.rows) : (isOneIdx ? row + 1 : row);
+        const cDisp = window.App ? window.App.getDisplayCol(col, item.cols) : (isOneIdx ? col + 1 : col);
         const prefix = this.items.length > 1 ? `${item.name} · ` : '';
         if (statusCell) statusCell.textContent = `${prefix}(${rDisp}, ${cDisp}) [1D: ${row * item.cols + col}]`;
         if (statusVal) statusVal.textContent = `Val: ${cell.isWall ? '# (Wall)' : cell.val}`;
@@ -2700,8 +2714,8 @@ class GridVisualizer {
         }
 
         if (this.showSubscripts && cs >= 36) {
-          const rDisp = isOneIdx ? r + 1 : r;
-          const cDisp = isOneIdx ? c + 1 : c;
+          const rDisp = window.App ? window.App.getDisplayRow(r, item.rows) : (isOneIdx ? r + 1 : r);
+          const cDisp = window.App ? window.App.getDisplayCol(c, item.cols) : (isOneIdx ? c + 1 : c);
           const subFontSize = Math.max(7, cs * 0.16);
           const pad = Math.max(2, cs * 0.06);
           this.ctx.font = `500 ${subFontSize}px "JetBrains Mono", Menlo, monospace`;
@@ -2783,13 +2797,14 @@ class GridVisualizer {
     // Column Headers (Top)
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'bottom';
+    const isRev = !!window.App?.isReversedIndex;
     for (let c = 0; c < item.cols; c++) {
       const isHoveredCol = (this.hoverInfo && this.hoverInfo.itemIdx === this.items.indexOf(item) && this.hoverInfo.col === c) ||
         (this.hoverHeader && this.hoverHeader.itemIdx === this.items.indexOf(item) && this.hoverHeader.type === 'col' && this.hoverHeader.index === c);
       this.ctx.fillStyle = isHoveredCol ? '#3b82f6' : (isActive ? '#a1a1aa' : '#71717a');
-      let label = isOneIdx ? c + 1 : c;
+      let label = window.App ? window.App.getDisplayCol(c, item.cols) : (isOneIdx ? c + 1 : c);
       if (isChess && item.rows <= 26 && item.cols <= 26 && !isOneIdx) {
-        label = String.fromCharCode(97 + c);
+        label = String.fromCharCode(97 + (isRev ? (item.cols - 1 - c) : c));
       }
       const x = c * cs + cs / 2;
       this.ctx.fillText(label, x, -headerGap);
@@ -2802,9 +2817,9 @@ class GridVisualizer {
       const isHoveredRow = (this.hoverInfo && this.hoverInfo.itemIdx === this.items.indexOf(item) && this.hoverInfo.row === r) ||
         (this.hoverHeader && this.hoverHeader.itemIdx === this.items.indexOf(item) && this.hoverHeader.type === 'row' && this.hoverHeader.index === r);
       this.ctx.fillStyle = isHoveredRow ? '#3b82f6' : (isActive ? '#a1a1aa' : '#71717a');
-      let label = isOneIdx ? r + 1 : r;
+      let label = window.App ? window.App.getDisplayRow(r, item.rows) : (isOneIdx ? r + 1 : r);
       if (isChess && item.rows <= 26 && item.cols <= 26 && !isOneIdx) {
-        label = item.rows - r;
+        label = isRev ? (r + 1) : (item.rows - r);
       }
       const y = r * cs + cs / 2;
       this.ctx.fillText(label, -headerGap * 1.15, y);

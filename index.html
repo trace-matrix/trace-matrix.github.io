@@ -62,9 +62,10 @@
       <!-- Global Actions -->
       <div class="header-actions">
         <!-- Indexing Mode Toggle -->
-        <div class="index-mode-toggle" title="Toggle 0-based vs 1-based indexing for CP coordinates">
+        <div class="index-mode-toggle" title="Toggle 0-based, 1-based, or Reversed indexing for rows &amp; columns">
           <button type="button" id="btn-idx-0" class="btn-idx active" data-idx="0">0-idx</button>
           <button type="button" id="btn-idx-1" class="btn-idx" data-idx="1">1-idx</button>
+          <button type="button" id="btn-idx-rev" class="btn-idx" data-rev-idx-btn title="Reverse Row &amp; Column Indices ([0..N] ↔ [N..0])" aria-pressed="false">Rev</button>
         </div>
 
         <!-- Shortcuts Button -->
@@ -114,7 +115,10 @@
             <div class="sidebar-section">
               <div class="section-header">
                 <h3>Grid Dimensions</h3>
-                <span class="dim-badge" id="grid-dim-text">10 × 10</span>
+                <div class="header-tools-row">
+                  <button type="button" class="subtle-link-btn" id="btn-grid-rev-idx" data-rev-idx-btn title="Reverse row &amp; column indices ([0..N] ↔ [N..0])" aria-pressed="false">Rev Idx</button>
+                  <span class="dim-badge" id="grid-dim-text">10 × 10</span>
+                </div>
               </div>
               <div class="dim-inputs-row">
                 <div class="input-group">
@@ -452,7 +456,10 @@
             <div class="sidebar-section">
               <div class="section-header">
                 <h3>Board Dimensions</h3>
-                <span class="dim-badge" id="chess-dim-badge">8 × 8</span>
+                <div class="header-tools-row">
+                  <button type="button" class="subtle-link-btn" id="btn-chess-rev-idx" data-rev-idx-btn title="Reverse row &amp; column indices ([0..N] ↔ [N..0])" aria-pressed="false">Rev Idx</button>
+                  <span class="dim-badge" id="chess-dim-badge">8 × 8</span>
+                </div>
               </div>
               <div class="dim-inputs-row">
                 <div class="input-group">
