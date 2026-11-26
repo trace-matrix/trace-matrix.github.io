@@ -11,6 +11,7 @@ class CanvasNotesManager {
     this.nextId = 1;
     this.zCounter = 35;
     this.dragState = null;
+    this.resizeState = null;
 
     this.containers = {
       grid: document.getElementById('grid-canvas-container'),
@@ -216,10 +217,27 @@ class CanvasNotesManager {
 
     body.appendChild(textarea);
 
-    const resizeGrip = document.createElement('span');
+    const resizeGrip = document.createElement('div');
     resizeGrip.className = 'canvas-note-resize-grip';
+    resizeGrip.title = 'Drag to resize note';
     resizeGrip.setAttribute('aria-hidden', 'true');
-    resizeGrip.innerHTML = `<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="11" y1="3" x2="3" y2="11"/><line x1="11" y1="7" x2="7" y2="11"/></svg>`;
+    resizeGrip.innerHTML = `<svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="11" y1="3" x2="3" y2="11"/><line x1="11" y1="7" x2="7" y2="11"/></svg>`;
+    resizeGrip.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      this.bringToFront(card);
+      this.resizeState = {
+        note,
+        card,
+        container,
+        startMouseX: e.clientX,
+        startMouseY: e.clientY,
+        startWidth: card.offsetWidth || note.width || 340,
+        startHeight: card.offsetHeight || note.height || 280
+      };
+      card.classList.add('resizing');
+    });
 
     card.appendChild(header);
     card.appendChild(body);
@@ -253,38 +271,46 @@ class CanvasNotesManager {
       card.classList.add('dragging');
     });
 
-    // Save resized dimensions after user drags resize corner
-    card.addEventListener('mouseup', () => {
-      if (!note.collapsed) {
-        const w = card.offsetWidth;
-        const h = card.offsetHeight;
-        if (w >= 180 && h >= 100 && (w !== note.width || h !== note.height)) {
-          note.width = w;
-          note.height = h;
-          this.saveState();
-        }
-      }
-    });
-
     container.appendChild(card);
     return card;
   }
 
   handleDragMove(e) {
-    if (!this.dragState) return;
-    const { note, card, container, startMouseX, startMouseY, startX, startY } = this.dragState;
-    note.x = startX + (e.clientX - startMouseX);
-    note.y = startY + (e.clientY - startMouseY);
-    this.clampNotePosition(note, container);
-    card.style.left = `${Math.round(note.x)}px`;
-    card.style.top = `${Math.round(note.y)}px`;
+    if (this.dragState) {
+      const { note, card, container, startMouseX, startMouseY, startX, startY } = this.dragState;
+      note.x = startX + (e.clientX - startMouseX);
+      note.y = startY + (e.clientY - startMouseY);
+      this.clampNotePosition(note, container);
+      card.style.left = `${Math.round(note.x)}px`;
+      card.style.top = `${Math.round(note.y)}px`;
+    }
+    if (this.resizeState) {
+      const { note, card, container, startMouseX, startMouseY, startWidth, startHeight } = this.resizeState;
+      const rect = container.getBoundingClientRect();
+      const maxW = Math.min(640, (rect.width || 800) - 24);
+      const maxH = Math.min(560, (rect.height || 600) - 24);
+      note.width = Math.max(220, Math.min(maxW, Math.round(startWidth + (e.clientX - startMouseX))));
+      note.height = Math.max(140, Math.min(maxH, Math.round(startHeight + (e.clientY - startMouseY))));
+      card.style.width = `${note.width}px`;
+      card.style.height = `${note.height}px`;
+    }
   }
 
   handleDragEnd() {
-    if (!this.dragState) return;
-    this.dragState.card.classList.remove('dragging');
-    this.dragState = null;
-    this.saveState();
+    let changed = false;
+    if (this.dragState) {
+      this.dragState.card.classList.remove('dragging');
+      this.dragState = null;
+      changed = true;
+    }
+    if (this.resizeState) {
+      this.resizeState.card.classList.remove('resizing');
+      this.resizeState = null;
+      changed = true;
+    }
+    if (changed) {
+      this.saveState();
+    }
   }
 
   deleteNote(id) {

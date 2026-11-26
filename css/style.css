@@ -1638,7 +1638,6 @@ input[type="number"].no-spin {
   border-radius: 10px;
   box-shadow: var(--shadow-lg);
   overflow: hidden;
-  resize: both;
   cursor: default;
   user-select: text;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
@@ -1802,14 +1801,25 @@ input[type="number"].no-spin {
 
 .canvas-note-resize-grip {
   position: absolute;
-  right: 5px;
-  bottom: 4px;
+  right: 2px;
+  bottom: 2px;
+  width: 20px;
+  height: 20px;
+  padding: 4px;
   color: #71717a;
-  pointer-events: none;
+  cursor: nwse-resize;
   display: inline-flex;
+  align-items: flex-end;
+  justify-content: flex-end;
   line-height: 0;
+  user-select: none;
+  transition: color 0.12s ease;
 }
 
-.canvas-note-card::-webkit-resizer {
-  background: transparent;
+.canvas-note-resize-grip:hover {
+  color: #a1a1aa;
+}
+
+.canvas-note-card.resizing {
+  user-select: none;
 }
