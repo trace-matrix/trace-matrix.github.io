@@ -473,8 +473,9 @@ class GridVisualizer {
       this.pushUndo();
       const r = parseInt(document.getElementById('grid-rows')?.value, 10) || 10;
       const c = parseInt(document.getElementById('grid-cols')?.value, 10) || 10;
-      this.initGrid(r, c);
-      this.fitGrid();
+      this.resizeGridPreserving(r, c, true);
+      this.syncBatchInputFromGrid();
+      this.updateSubmatrixStats();
       this.saveState();
       window.App?.showToast(`Grid resized to ${this.rows} × ${this.cols}`, 'info');
     });
@@ -484,10 +485,11 @@ class GridVisualizer {
       btn.addEventListener('click', () => {
         this.pushUndo();
         const [r, c] = btn.dataset.gridSize.split('x').map(Number);
-        this.initGrid(r, c, 0);
-        this.fitGrid();
+        this.resizeGridPreserving(r, c, true);
+        this.syncBatchInputFromGrid();
+        this.updateSubmatrixStats();
         this.saveState();
-        window.App?.showToast(`Grid set to ${r} × ${c}`, 'info');
+        window.App?.showToast(`Grid set to ${this.rows} × ${this.cols}`, 'info');
       });
     });
 
@@ -1657,17 +1659,19 @@ class GridVisualizer {
   }
 
   resizeGridPreserving(newRows, newCols, preserve = true) {
+    const clampedR = Math.max(1, Math.min(100, newRows));
+    const clampedC = Math.max(1, Math.min(100, newCols));
     const oldGrid = this.grid;
     const oldRows = this.rows;
     const oldCols = this.cols;
 
-    this.rows = newRows;
-    this.cols = newCols;
+    this.rows = clampedR;
+    this.cols = clampedC;
     this.grid = [];
 
-    for (let r = 0; r < newRows; r++) {
+    for (let r = 0; r < clampedR; r++) {
       const row = [];
-      for (let c = 0; c < newCols; c++) {
+      for (let c = 0; c < clampedC; c++) {
         if (preserve && r < oldRows && c < oldCols) {
           row.push(oldGrid[r][c]);
         } else {
@@ -1677,24 +1681,26 @@ class GridVisualizer {
       this.grid.push(row);
     }
 
-    this.startCells = (this.startCells || []).filter(p => p.r >= 0 && p.r < newRows && p.c >= 0 && p.c < newCols);
-    if (this.endCell && (this.endCell.r < 0 || this.endCell.r >= newRows || this.endCell.c < 0 || this.endCell.c >= newCols)) {
+    this.startCells = (this.startCells || []).filter(p => p.r >= 0 && p.r < clampedR && p.c >= 0 && p.c < clampedC);
+    if (this.endCell && (this.endCell.r < 0 || this.endCell.r >= clampedR || this.endCell.c < 0 || this.endCell.c >= clampedC)) {
       this.endCell = null;
     }
     if (this.submatrix) {
-      const r1 = Math.min(newRows - 1, Math.max(0, this.submatrix.r1));
-      const c1 = Math.min(newCols - 1, Math.max(0, this.submatrix.c1));
-      const r2 = Math.min(newRows - 1, Math.max(0, this.submatrix.r2));
-      const c2 = Math.min(newCols - 1, Math.max(0, this.submatrix.c2));
+      const r1 = Math.min(clampedR - 1, Math.max(0, this.submatrix.r1));
+      const c1 = Math.min(clampedC - 1, Math.max(0, this.submatrix.c1));
+      const r2 = Math.min(clampedR - 1, Math.max(0, this.submatrix.r2));
+      const c2 = Math.min(clampedC - 1, Math.max(0, this.submatrix.c2));
       this.submatrix = { r1: Math.min(r1, r2), c1: Math.min(c1, c2), r2: Math.max(r1, r2), c2: Math.max(c1, c2) };
     }
     if (this.selectedCells) {
-      this.selectedCells = this.selectedCells.filter(p => p.r >= 0 && p.r < newRows && p.c >= 0 && p.c < newCols);
+      this.selectedCells = this.selectedCells.filter(p => p.r >= 0 && p.r < clampedR && p.c >= 0 && p.c < clampedC);
       if (this.selectedCells.length === 0) this.selectedCells = null;
     }
+    this.algoOverlay = null;
+    this.hideAlgoResult();
     this.hoverInfo = null;
 
-    this.updateDimBadge();
+    this.syncItemSelector();
     this.fitGrid();
     this.saveState();
   }

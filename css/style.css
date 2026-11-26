@@ -1711,7 +1711,7 @@ input[type="number"].no-spin {
 .canvas-note-actions {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
   flex-shrink: 0;
 }
 
@@ -1758,6 +1758,7 @@ input[type="number"].no-spin {
   user-select: none;
 }
 
+.canvas-note-min-btn,
 .canvas-note-close-btn {
   border: none;
   background: transparent;
@@ -1773,9 +1774,25 @@ input[type="number"].no-spin {
   transition: color 0.12s ease, background-color 0.12s ease;
 }
 
+.canvas-note-min-btn:hover,
 .canvas-note-close-btn:hover {
   color: #ffffff;
   background-color: #1a1a1a;
+}
+
+.canvas-note-card.collapsed {
+  min-height: 0;
+  height: auto !important;
+}
+
+.canvas-note-card.collapsed .canvas-note-header {
+  border-bottom: none;
+}
+
+.canvas-note-card.collapsed .canvas-note-body,
+.canvas-note-card.collapsed .canvas-note-resize-grip,
+.canvas-note-card.collapsed .canvas-note-size-pill {
+  display: none;
 }
 
 .canvas-note-body {

@@ -56,7 +56,8 @@ class CanvasNotesManager {
       x,
       y,
       width,
-      height
+      height,
+      collapsed: false
     };
 
     this.notes.push(note);
@@ -90,7 +91,7 @@ class CanvasNotesManager {
     if (!note.fontSize || Number.isNaN(note.fontSize)) note.fontSize = 18;
 
     const card = document.createElement('div');
-    card.className = 'canvas-note-card';
+    card.className = `canvas-note-card${note.collapsed ? ' collapsed' : ''}`;
     card.dataset.noteId = String(note.id);
     card.style.left = `${Math.round(note.x)}px`;
     card.style.top = `${Math.round(note.y)}px`;
@@ -185,6 +186,31 @@ class CanvasNotesManager {
     sizePill.appendChild(sizeVal);
     sizePill.appendChild(incBtn);
 
+    const minBtn = document.createElement('button');
+    minBtn.type = 'button';
+    minBtn.className = 'canvas-note-min-btn';
+
+    const syncMinButton = () => {
+      const isCollapsed = !!note.collapsed;
+      card.classList.toggle('collapsed', isCollapsed);
+      minBtn.title = isCollapsed ? 'Expand note' : 'Minimize note';
+      minBtn.setAttribute('aria-label', isCollapsed ? 'Expand note' : 'Minimize note');
+      minBtn.setAttribute('aria-expanded', String(!isCollapsed));
+      minBtn.innerHTML = isCollapsed
+        ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`
+        : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+    };
+    syncMinButton();
+
+    minBtn.addEventListener('click', () => {
+      note.collapsed = !note.collapsed;
+      syncMinButton();
+      this.saveState();
+      if (!note.collapsed) {
+        textarea.focus();
+      }
+    });
+
     const closeBtn = document.createElement('button');
     closeBtn.type = 'button';
     closeBtn.className = 'canvas-note-close-btn';
@@ -194,6 +220,7 @@ class CanvasNotesManager {
     closeBtn.addEventListener('click', () => this.deleteNote(note.id));
 
     actions.appendChild(sizePill);
+    actions.appendChild(minBtn);
     actions.appendChild(closeBtn);
 
     header.appendChild(titleWrap);

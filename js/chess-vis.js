@@ -410,6 +410,31 @@ class ChessVisualizer {
     this.syncBoardSelector();
   }
 
+  resizeBoardPreserving(rows, cols) {
+    const b = this.activeBoard;
+    const oldRows = b.rows;
+    const oldCols = b.cols;
+    const oldBoard = b.board;
+    const newRows = Math.max(1, Math.min(30, rows));
+    const newCols = Math.max(1, Math.min(30, cols));
+
+    b.rows = newRows;
+    b.cols = newCols;
+    b.board = Array.from({ length: newRows }, (_, r) =>
+      Array.from({ length: newCols }, (_, c) =>
+        r < oldRows && c < oldCols && oldBoard[r]?.[c]
+          ? { ...oldBoard[r][c] }
+          : { piece: null, color: 'w' }
+      )
+    );
+    if (b.selectedSquare && (b.selectedSquare.r >= newRows || b.selectedSquare.c >= newCols)) {
+      b.selectedSquare = null;
+    }
+    this.clearSolverOverlays(true, b);
+    this.syncBoardSelector();
+    this.updateInspector();
+  }
+
   // ==========================================
   // VIEWPORT & CANVAS SIZING
   // ==========================================
@@ -517,7 +542,7 @@ class ChessVisualizer {
       const r = parseInt(document.getElementById('chess-rows')?.value) || 8;
       const c = parseInt(document.getElementById('chess-cols')?.value) || 8;
       this.pushUndo();
-      this.initBoard(r, c);
+      this.resizeBoardPreserving(r, c);
       this.fitBoard();
       this.saveState();
       window.App?.showToast(`${this.activeBoard.name} resized to ${this.rows} × ${this.cols}`, 'info');
@@ -527,10 +552,10 @@ class ChessVisualizer {
       btn.addEventListener('click', () => {
         const [r, c] = btn.dataset.chessSize.split('x').map(Number);
         this.pushUndo();
-        this.initBoard(r, c);
+        this.resizeBoardPreserving(r, c);
         this.fitBoard();
         this.saveState();
-        window.App?.showToast(`${this.activeBoard.name} set to ${r} × ${c}`, 'info');
+        window.App?.showToast(`${this.activeBoard.name} set to ${this.rows} × ${this.cols}`, 'info');
       });
     });
 
