@@ -40,6 +40,8 @@ class ChessVisualizer {
     // Active tool / piece / overlay
     this.activePiece = 'N';
     this.activeOverlay = 'none'; // 'none' | 'attack' | 'manhattan' | 'chebyshev' | 'bipartite'
+    this.inputMode = 'auto'; // 'auto' | 'board'
+    this._batchTimer = null;
 
     // Interaction state
     this.hoverInfo = null; // { boardIdx, r, c } or null
@@ -160,7 +162,8 @@ class ChessVisualizer {
       nqueensSolutions: [],
       nqueensIndex: 0,
       knightsTourMoves: null,
-      attackStats: null
+      attackStats: null,
+      inputText: ''
     };
   }
 
@@ -192,6 +195,7 @@ class ChessVisualizer {
         cols: b.cols,
         offsetX: b.offsetX,
         offsetY: b.offsetY,
+        inputText: b.inputText || '',
         board: this.cloneCells(b.board)
       }))
     };
@@ -234,6 +238,7 @@ class ChessVisualizer {
       id: sb.id,
       kind: sb.kind || 'chess',
       name: sb.name,
+      inputText: sb.inputText || '',
       board: this.cloneCells(sb.board)
     }));
     // Restore nextBoardNum cleanly after createBoardEntry increments
@@ -244,6 +249,7 @@ class ChessVisualizer {
     this.activeBoardIndex = Math.max(0, Math.min(this.boards.length - 1, snap.activeBoardIndex || 0));
     this.stopNQueensTimer();
     this.syncBoardSelector();
+    this.syncInputFromBoard();
     this.render();
     this.saveState();
   }
@@ -267,10 +273,12 @@ class ChessVisualizer {
     if (cloneActive) {
       entry.board = this.cloneCells(ref.board);
       entry.name = `${ref.name} Copy`;
+      entry.inputText = ref.inputText || '';
     }
 
     this.boards.push(entry);
     this.setActiveBoard(this.boards.length - 1, false);
+    this.syncInputFromBoard();
     this.fitBoard();
     this.saveState();
     window.App?.showToast(
@@ -303,6 +311,7 @@ class ChessVisualizer {
     }
     this.activeBoardIndex = idx;
     this.syncBoardSelector();
+    this.syncInputFromBoard();
     if (shouldRender) {
       this.render();
       this.saveState();
@@ -407,7 +416,9 @@ class ChessVisualizer {
     );
     b.selectedSquare = null;
     this.clearSolverOverlays(true, b);
+    b.inputText = '';
     this.syncBoardSelector();
+    this.syncInputFromBoard();
   }
 
   resizeBoardPreserving(rows, cols) {
@@ -424,7 +435,7 @@ class ChessVisualizer {
       Array.from({ length: newCols }, (_, c) =>
         r < oldRows && c < oldCols && oldBoard[r]?.[c]
           ? { ...oldBoard[r][c] }
-          : { piece: null, color: 'w' }
+          : { piece: null, color: 'w', val: '0' }
       )
     );
     if (b.selectedSquare && (b.selectedSquare.r >= newRows || b.selectedSquare.c >= newCols)) {
@@ -432,6 +443,7 @@ class ChessVisualizer {
     }
     this.clearSolverOverlays(true, b);
     this.syncBoardSelector();
+    this.syncInputFromBoard();
     this.updateInspector();
   }
 
@@ -598,6 +610,38 @@ class ChessVisualizer {
     document.getElementById('btn-chess-rotate')?.addEventListener('click', () => this.rotateBoard90());
     document.getElementById('btn-chess-flip')?.addEventListener('click', () => this.flipBoardH());
     document.getElementById('btn-copy-chess-coords')?.addEventListener('click', () => this.copyPieceCoords());
+
+    // Batch Chessboard Input Textbox Listeners (Two-Way Sync)
+    document.querySelectorAll('[data-chess-input-mode]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.inputMode = btn.dataset.chessInputMode === 'board' ? 'board' : 'auto';
+        document.querySelectorAll('[data-chess-input-mode]').forEach(b => {
+          b.classList.toggle('active', b === btn);
+        });
+        this.syncInputFromBoard();
+        this.saveState();
+      });
+    });
+
+    document.getElementById('btn-chess-copy-io')?.addEventListener('click', () => this.copyPieceCoords());
+
+    const chessInput = document.getElementById('chess-batch-input');
+    chessInput?.addEventListener('paste', () => {
+      clearTimeout(this._batchTimer);
+      setTimeout(() => {
+        this.parseBatchInput(chessInput.value, true);
+      }, 10);
+    });
+    chessInput?.addEventListener('input', () => {
+      clearTimeout(this._batchTimer);
+      this._batchTimer = setTimeout(() => {
+        this.parseBatchInput(chessInput.value, false);
+      }, 180);
+    });
+    chessInput?.addEventListener('change', () => {
+      clearTimeout(this._batchTimer);
+      this.parseBatchInput(chessInput.value, false);
+    });
 
     // Zoom & Esc Controls
     document.getElementById('chess-zoom-in')?.addEventListener('click', () => this.zoomBy(1.2));
@@ -768,6 +812,7 @@ class ChessVisualizer {
       this.lastPaintedKey = `${hit.boardIdx}:${hit.r},${hit.c}`;
       this.applyCellStroke(hit.r, hit.c, 'erase', b);
       this.clearSolverOverlays(true, b);
+      this.syncInputFromBoard();
       this.render();
       this.saveState();
       return;
@@ -799,6 +844,7 @@ class ChessVisualizer {
     }
 
     this.clearSolverOverlays(true, b);
+    this.syncInputFromBoard();
     this.render();
     this.saveState();
   }
@@ -860,6 +906,7 @@ class ChessVisualizer {
       this.isPainting = false;
       this.paintErase = false;
       this.lastPaintedKey = null;
+      this.syncInputFromBoard();
       this.saveState();
     }
     this.isPanning = false;
@@ -912,10 +959,10 @@ class ChessVisualizer {
         cell.piece = raw.toUpperCase();
       } else {
         cell.piece = null;
-        const num = Number(raw);
-        cell.val = raw === '' ? 0 : (!isNaN(num) && Number.isFinite(num) ? num : raw);
+        cell.val = raw === '' ? '0' : raw;
       }
       this.clearSolverOverlays(true, b);
+      this.syncInputFromBoard();
       this.render();
       input.remove();
       this.saveState();
@@ -1421,6 +1468,7 @@ class ChessVisualizer {
 
     const counter = document.getElementById('nqueens-solution-counter');
     if (counter) counter.textContent = `${b.nqueensIndex + 1} / ${b.nqueensSolutions.length}`;
+    this.syncInputFromBoard();
     this.render();
     this.saveState();
   }
@@ -1520,6 +1568,7 @@ class ChessVisualizer {
       }
     }
 
+    this.syncInputFromBoard();
     this.render();
     this.saveState();
     window.App?.showToast(`${b.name}: placed ${placed} max non-attacking Rook${placed !== 1 ? 's' : ''}`, 'success');
@@ -1636,6 +1685,7 @@ class ChessVisualizer {
         }
       }
     }
+    this.syncInputFromBoard();
     this.render();
     this.saveState();
     window.App?.showToast(`${b.name}: generated ${placed} wall obstacle${placed !== 1 ? 's' : ''} (#)`, 'info');
@@ -1650,13 +1700,15 @@ class ChessVisualizer {
     b.board = Array.from({ length: newRows }, (_, nr) =>
       Array.from({ length: newCols }, (_, nc) => ({
         piece: b.board[b.rows - 1 - nc][nr].piece,
-        color: b.board[b.rows - 1 - nc][nr].color || 'w'
+        color: b.board[b.rows - 1 - nc][nr].color || 'w',
+        val: b.board[b.rows - 1 - nc][nr].val !== undefined ? b.board[b.rows - 1 - nc][nr].val : '0'
       }))
     );
     b.rows = newRows;
     b.cols = newCols;
     b.selectedSquare = null;
     this.syncBoardSelector();
+    this.syncInputFromBoard();
     this.fitBoard();
     this.saveState();
     window.App?.showToast(`Rotated ${b.name} 90° clockwise`, 'info');
@@ -1668,9 +1720,384 @@ class ChessVisualizer {
     this.clearSolverOverlays(true, b);
     for (let r = 0; r < b.rows; r++) b.board[r].reverse();
     b.selectedSquare = null;
+    this.syncInputFromBoard();
     this.render();
     this.saveState();
     window.App?.showToast(`Flipped ${b.name} horizontally`, 'info');
+  }
+
+  syncInputFromBoard() {
+    const chessInput = document.getElementById('chess-batch-input');
+    const b = this.activeBoard;
+    if (!b) return;
+
+    const existingText = chessInput ? chessInput.value : (b.inputText || '');
+    const existingLines = existingText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+    const existingTokens = existingLines.map(l => l.split(/[\s,;]+/).filter(t => t.length > 0));
+    const firstLen = existingTokens[0]?.length || 0;
+    const looksLikeBoard = existingLines.length > 0 && (
+      existingTokens.every(t => t.length === 1 && t[0].length >= 2) ||
+      (firstLen >= 4 && existingTokens.every(t => t.length === firstLen)) ||
+      (existingTokens.length >= 2 && firstLen === 2 && /^-?\d+$/.test(existingTokens[0][0]) && /^-?\d+$/.test(existingTokens[0][1]) && existingTokens.slice(1).every(t => t.length >= 2 || (t.length === 1 && t[0].length >= 2)))
+    );
+
+    let nonEmptyCount = 0;
+    for (let r = 0; r < b.rows; r++) {
+      for (let c = 0; c < b.cols; c++) {
+        const cell = b.board[r]?.[c];
+        if (!cell) continue;
+        if (b.kind === 'grid') {
+          const vs = String(cell.val ?? '0');
+          if (cell.piece === '#' || (vs !== '0' && vs !== '')) nonEmptyCount++;
+        } else if (cell.piece) {
+          nonEmptyCount++;
+        }
+      }
+    }
+
+    const useBoardFormat = this.inputMode === 'board' || looksLikeBoard;
+    let text = '';
+
+    if (useBoardFormat && nonEmptyCount > 0) {
+      const lines = [];
+      for (let r = 0; r < b.rows; r++) {
+        if (b.kind === 'grid') {
+          lines.push(b.board[r].map(cell => (cell.piece === '#' ? '#' : String(cell.val ?? '0'))).join(' '));
+        } else {
+          lines.push(b.board[r].map(cell => cell.piece || '.').join(''));
+        }
+      }
+      text = lines.join('\n');
+    } else if (nonEmptyCount > 0) {
+      const lines = [];
+      for (let r = 0; r < b.rows; r++) {
+        for (let c = 0; c < b.cols; c++) {
+          const cell = b.board[r]?.[c];
+          if (!cell) continue;
+          const rDisp = window.App ? window.App.getDisplayRow(r, b.rows) : r;
+          const cDisp = window.App ? window.App.getDisplayCol(c, b.cols) : c;
+          if (b.kind === 'grid') {
+            const vs = String(cell.val ?? '0');
+            if (cell.piece === '#' || (vs !== '0' && vs !== '')) {
+              lines.push(`${rDisp} ${cDisp} ${cell.piece === '#' ? '#' : vs}`);
+            }
+          } else if (cell.piece) {
+            lines.push(`${rDisp} ${cDisp} ${cell.piece}`);
+          }
+        }
+      }
+      text = lines.join('\n');
+    }
+
+    b.inputText = text;
+    if (chessInput && chessInput.value !== text) {
+      chessInput.value = text;
+    }
+  }
+
+  applyBoardToken(cell, rawToken, isGridKind) {
+    const tok = String(rawToken ?? '').trim();
+    if (isGridKind) {
+      if (tok === '#') {
+        cell.piece = '#';
+        cell.val = '#';
+      } else {
+        cell.piece = null;
+        cell.val = tok === '' ? '0' : tok;
+      }
+      return;
+    }
+    if (tok === '#' || tok === '*') {
+      cell.piece = '#';
+      cell.val = '#';
+    } else if (MOVABLE_PIECES.has(tok.toUpperCase())) {
+      cell.piece = tok.toUpperCase();
+    } else {
+      cell.piece = null;
+      cell.val = '0';
+    }
+  }
+
+  parseFenBoard(fenRankField, showToast = true) {
+    const fenRows = fenRankField.split('/');
+    const parsedRows = [];
+    let maxCols = 0;
+    for (const rankStr of fenRows) {
+      if (!rankStr || !/^[pnbrqkPNBRQK1-9]+$/.test(rankStr)) return false;
+      const rowTokens = [];
+      let i = 0;
+      while (i < rankStr.length) {
+        const ch = rankStr[i];
+        if (ch >= '1' && ch <= '9') {
+          let numStr = ch;
+          while (i + 1 < rankStr.length && rankStr[i + 1] >= '0' && rankStr[i + 1] <= '9') {
+            numStr += rankStr[++i];
+          }
+          const emptyCount = Math.min(30, parseInt(numStr, 10));
+          for (let k = 0; k < emptyCount; k++) rowTokens.push('.');
+        } else {
+          rowTokens.push(ch.toUpperCase());
+        }
+        i++;
+      }
+      maxCols = Math.max(maxCols, rowTokens.length);
+      parsedRows.push(rowTokens);
+    }
+    const newR = Math.max(1, Math.min(30, parsedRows.length));
+    const newC = Math.max(1, Math.min(30, maxCols));
+    const b = this.activeBoard;
+    b.rows = newR;
+    b.cols = newC;
+    b.board = Array.from({ length: newR }, (_, r) =>
+      Array.from({ length: newC }, (_, c) => {
+        const cell = { piece: null, color: 'w', val: '0' };
+        this.applyBoardToken(cell, parsedRows[r]?.[c] || '.', false);
+        return cell;
+      })
+    );
+    b.selectedSquare = null;
+    this.clearSolverOverlays(true, b);
+    this.syncBoardSelector();
+    this.fitBoard();
+    this.saveState();
+    if (showToast) {
+      window.App?.showToast(`Loaded ${newR}×${newC} FEN position onto ${b.name}`, 'success');
+    }
+    return true;
+  }
+
+  parseBatchInput(rawText, showToast = true) {
+    const b = this.activeBoard;
+    b.inputText = rawText || '';
+    this.clearSolverOverlays(true, b);
+
+    const resetSquares = (targetRows = b.rows, targetCols = b.cols) => {
+      b.rows = Math.max(1, Math.min(30, targetRows));
+      b.cols = Math.max(1, Math.min(30, targetCols));
+      b.board = Array.from({ length: b.rows }, () =>
+        Array.from({ length: b.cols }, () => ({ piece: null, color: 'w', val: '0' }))
+      );
+      b.selectedSquare = null;
+    };
+
+    if (!rawText || !rawText.trim()) {
+      resetSquares();
+      this.render();
+      this.saveState();
+      return;
+    }
+
+    // FEN detection (e.g. rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1)
+    const firstNonEmptyLine = rawText.split(/\r?\n/).map(l => l.trim()).find(Boolean) || '';
+    const firstLineParts = firstNonEmptyLine.split(/\s+/);
+    if (firstLineParts[0].includes('/') && rawText.trim().split(/\r?\n/).filter(l => l.trim()).length === 1) {
+      if (this.parseFenBoard(firstLineParts[0], showToast)) return;
+    }
+
+    const lines = rawText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0 && !l.startsWith('//'));
+    if (lines.length === 0) {
+      resetSquares();
+      this.render();
+      this.saveState();
+      return;
+    }
+
+    const tokenizedLines = lines.map(l => l.split(/[\s,;]+/).filter(t => t.length > 0));
+    const intRe = /^-?\d+$/;
+    let startLine = 0;
+    let headerDim = null;
+
+    if (
+      this.inputMode !== 'board' &&
+      tokenizedLines.length > 1 &&
+      tokenizedLines[0].length === 1 &&
+      intRe.test(tokenizedLines[0][0])
+    ) {
+      const nCount = parseInt(tokenizedLines[0][0], 10);
+      if (nCount > 0 && tokenizedLines.length - 1 === nCount) {
+        startLine = 1;
+      }
+    } else if (
+      tokenizedLines.length > 1 &&
+      tokenizedLines[0].length === 2 &&
+      intRe.test(tokenizedLines[0][0]) &&
+      intRe.test(tokenizedLines[0][1])
+    ) {
+      const hR = parseInt(tokenizedLines[0][0], 10);
+      const hC = parseInt(tokenizedLines[0][1], 10);
+      const rest = tokenizedLines.slice(1);
+      if (hR > 0 && hC > 0 && rest.length === hR && rest.every(t => t.length === 1 && t[0].length === hC)) {
+        startLine = 1;
+        headerDim = { r: hR, c: hC };
+      } else if (hR > 0 && hC > 0 && rest.length === hR && rest.every(t => t.length === hC)) {
+        startLine = 1;
+        headerDim = { r: hR, c: hC };
+      } else if (hC > 0 && rest.length === hC) {
+        startLine = 1;
+      }
+    }
+
+    const dataRows = tokenizedLines.slice(startLine);
+    if (dataRows.length === 0) {
+      resetSquares();
+      this.render();
+      this.saveState();
+      return;
+    }
+
+    const isGridKind = b.kind === 'grid';
+    const isSingleCharGrid = dataRows.every(t => t.length === 1 && t[0].length >= 2);
+    if (isSingleCharGrid) {
+      const newR = Math.min(30, headerDim ? headerDim.r : dataRows.length);
+      const newC = Math.min(30, headerDim ? headerDim.c : Math.max(...dataRows.map(t => t[0].length)));
+      const prevRows = b.rows;
+      const prevCols = b.cols;
+      resetSquares(newR, newC);
+      for (let r = 0; r < newR; r++) {
+        const str = dataRows[r]?.[0] || '';
+        for (let c = 0; c < Math.min(newC, str.length); c++) {
+          this.applyBoardToken(b.board[r][c], str[c], isGridKind);
+        }
+      }
+      this.syncBoardSelector();
+      if (newR !== prevRows || newC !== prevCols) this.fitBoard();
+      else this.render();
+      this.saveState();
+      if (showToast) {
+        window.App?.showToast(`Loaded ${newR}×${newC} board onto ${b.name}`, 'success');
+      }
+      return;
+    }
+
+    const firstRowLen = dataRows[0].length;
+    const algRe = /^([a-z])(\d+)$/i;
+    const isCoordLine = (t) => {
+      if ((t.length === 2 || t.length === 3) && intRe.test(t[0]) && intRe.test(t[1])) return true;
+      if (t.length === 1 && algRe.test(t[0])) return true;
+      if (t.length === 2 && (algRe.test(t[0]) || algRe.test(t[1]))) return true;
+      return false;
+    };
+    const looksLikeCoords = dataRows.every(isCoordLine);
+    const isUniformMatrix =
+      !!headerDim ||
+      (this.inputMode === 'board' && dataRows.every(t => t.length === firstRowLen)) ||
+      (dataRows.every(t => t.length === firstRowLen) && (firstRowLen >= 4 || (firstRowLen >= 2 && !looksLikeCoords)));
+
+    if (isUniformMatrix) {
+      const newR = Math.min(30, headerDim ? headerDim.r : dataRows.length);
+      const newC = Math.min(30, headerDim ? headerDim.c : firstRowLen);
+      const prevRows = b.rows;
+      const prevCols = b.cols;
+      resetSquares(newR, newC);
+      for (let r = 0; r < newR; r++) {
+        for (let c = 0; c < Math.min(newC, dataRows[r]?.length || 0); c++) {
+          this.applyBoardToken(b.board[r][c], dataRows[r][c], isGridKind);
+        }
+      }
+      this.syncBoardSelector();
+      if (newR !== prevRows || newC !== prevCols) this.fitBoard();
+      else this.render();
+      this.saveState();
+      if (showToast) {
+        window.App?.showToast(`Loaded ${newR}×${newC} board onto ${b.name}`, 'success');
+      }
+      return;
+    }
+
+    // Sparse coordinate lines: "r c P", "r c", "d5 N", "N d5", "d5"
+    const defaultPiece = (this.activePiece === '#' || MOVABLE_PIECES.has(this.activePiece)) ? this.activePiece : 'N';
+    const numericEntries = [];
+    const algEntries = [];
+    let minR = Infinity;
+    let minC = Infinity;
+
+    for (const tokens of dataRows) {
+      if ((tokens.length === 2 || tokens.length === 3) && intRe.test(tokens[0]) && intRe.test(tokens[1])) {
+        const rawR = parseInt(tokens[0], 10);
+        const rawC = parseInt(tokens[1], 10);
+        const val = tokens.length === 3 ? tokens[2] : (isGridKind ? '1' : defaultPiece);
+        numericEntries.push({ r: rawR, c: rawC, val });
+        minR = Math.min(minR, rawR);
+        minC = Math.min(minC, rawC);
+      } else {
+        const m0 = tokens[0].match(algRe);
+        const m1 = tokens[1]?.match(algRe);
+        if (m0) {
+          const col = m0[1].toLowerCase().charCodeAt(0) - 97;
+          const rank = parseInt(m0[2], 10);
+          const val = tokens[1] || defaultPiece;
+          algEntries.push({ col, rank, val });
+        } else if (m1) {
+          const col = m1[1].toLowerCase().charCodeAt(0) - 97;
+          const rank = parseInt(m1[2], 10);
+          const val = tokens[0];
+          algEntries.push({ col, rank, val });
+        }
+      }
+    }
+
+    if (numericEntries.length === 0 && algEntries.length === 0) {
+      resetSquares();
+      this.render();
+      this.saveState();
+      if (showToast) {
+        window.App?.showToast('No valid board rows or "r c piece" / "d5 N" entries found', 'error');
+      }
+      return;
+    }
+
+    const isOneIdx = !!window.App?.isOneIndexed;
+    const isRev = !!window.App?.isReversedIndex;
+    const shouldSub1 = isOneIdx && minR >= 1 && minC >= 1;
+    let neededR = b.rows;
+    let neededC = b.cols;
+
+    const resolvedEntries = [];
+    for (const e of numericEntries) {
+      const r0 = shouldSub1 ? e.r - 1 : e.r;
+      const c0 = shouldSub1 ? e.c - 1 : e.c;
+      if (r0 >= 0 && c0 >= 0) {
+        neededR = Math.max(neededR, r0 + 1);
+        neededC = Math.max(neededC, c0 + 1);
+        resolvedEntries.push({ type: 'idx', r0, c0, val: e.val });
+      }
+    }
+    for (const a of algEntries) {
+      if (a.col >= 0 && a.rank >= 1) {
+        neededR = Math.max(neededR, a.rank);
+        neededC = Math.max(neededC, a.col + 1);
+        resolvedEntries.push({ type: 'alg', col: a.col, rank: a.rank, val: a.val });
+      }
+    }
+
+    const finalR = Math.min(30, neededR);
+    const finalC = Math.min(30, neededC);
+    const sizeChanged = finalR !== b.rows || finalC !== b.cols;
+    resetSquares(finalR, finalC);
+
+    let updated = 0;
+    for (const item of resolvedEntries) {
+      let rr, cc;
+      if (item.type === 'idx') {
+        rr = isRev ? (finalR - 1 - item.r0) : item.r0;
+        cc = isRev ? (finalC - 1 - item.c0) : item.c0;
+      } else {
+        cc = isRev ? (finalC - 1 - item.col) : item.col;
+        rr = isRev ? (item.rank - 1) : (finalR - item.rank);
+      }
+      if (rr >= 0 && rr < finalR && cc >= 0 && cc < finalC) {
+        this.applyBoardToken(b.board[rr][cc], item.val, isGridKind);
+        updated++;
+      }
+    }
+
+    this.syncBoardSelector();
+    if (sizeChanged) this.fitBoard();
+    else this.render();
+    this.saveState();
+    if (showToast) {
+      window.App?.showToast(`Updated ${updated} square${updated !== 1 ? 's' : ''} on ${b.name}`, 'success');
+    }
   }
 
   copyPieceCoords() {
@@ -2083,6 +2510,7 @@ class ChessVisualizer {
         activeBoardIndex: this.activeBoardIndex,
         activePiece: this.activePiece,
         activeOverlay: this.activeOverlay,
+        inputMode: this.inputMode,
         boards: this.boards.map(b => ({
           id: b.id,
           kind: b.kind || 'chess',
@@ -2091,6 +2519,7 @@ class ChessVisualizer {
           cols: b.cols,
           offsetX: b.offsetX,
           offsetY: b.offsetY,
+          inputText: b.inputText || '',
           board: b.board
         }))
       };
@@ -2118,6 +2547,7 @@ class ChessVisualizer {
             sb.kind || 'chess'
           );
           if (sb.id) entry.id = sb.id;
+          if (typeof sb.inputText === 'string') entry.inputText = sb.inputText;
           if (Array.isArray(sb.board)) entry.board = sb.board;
           return entry;
         });
@@ -2136,6 +2566,13 @@ class ChessVisualizer {
         return false;
       }
 
+      if (state.inputMode) {
+        this.inputMode = state.inputMode === 'board' ? 'board' : 'auto';
+        document.querySelectorAll('[data-chess-input-mode]').forEach(btn => {
+          btn.classList.toggle('active', btn.dataset.chessInputMode === this.inputMode);
+        });
+      }
+
       if (state.activePiece) {
         this.activePiece = state.activePiece;
         document.querySelectorAll('[data-piece]').forEach(b => {
@@ -2151,6 +2588,7 @@ class ChessVisualizer {
       }
 
       this.syncBoardSelector();
+      this.syncInputFromBoard();
       return true;
     } catch (e) {
       console.warn('Failed to load chess state from localStorage', e);

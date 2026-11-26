@@ -66,12 +66,18 @@ class PointVisualizer {
     // History Stacks
     this.undoStack = [];
     this.redoStack = [];
+    this.needsInitialFit = false;
+    this.lastCanvasWidth = 0;
+    this.lastCanvasHeight = 0;
 
     this.initEventListeners();
     this.resizeCanvas();
     const loaded = this.loadState();
     this.syncControlStatesUI();
-    if (loaded && (this.points.length > 0 || this.circles.length > 0)) {
+    const initRect = this.container?.getBoundingClientRect();
+    if (!initRect || initRect.width === 0 || initRect.height === 0) {
+      this.needsInitialFit = true;
+    } else if (loaded && (this.points.length > 0 || this.circles.length > 0)) {
       this.fitPoints();
     } else {
       this.resetOrigin();
@@ -177,17 +183,39 @@ class PointVisualizer {
   resizeCanvas() {
     if (!this.container || !this.canvas) return;
     const rect = this.container.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) {
+      this.needsInitialFit = true;
+      return;
+    }
+    const prevW = this.lastCanvasWidth;
+    const prevH = this.lastCanvasHeight;
     const dpr = window.devicePixelRatio || 1;
     this.canvas.width = rect.width * dpr;
     this.canvas.height = rect.height * dpr;
+    this.lastCanvasWidth = rect.width;
+    this.lastCanvasHeight = rect.height;
     this.ctx.resetTransform?.();
     this.ctx.scale(dpr, dpr);
+    if (this.needsInitialFit) {
+      this.needsInitialFit = false;
+      this.fitPoints();
+      return;
+    }
+    if (prevW > 0 && prevH > 0 && (prevW !== rect.width || prevH !== rect.height)) {
+      this.originX += (rect.width - prevW) / 2;
+      this.originY += (rect.height - prevH) / 2;
+      this.updateStatusPill();
+    }
     this.render();
   }
 
   resetOrigin() {
     if (!this.container) return;
     const rect = this.container.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) {
+      this.needsInitialFit = true;
+      return;
+    }
     this.originX = Math.round(rect.width / 2);
     this.originY = Math.round(rect.height / 2);
     this.scale = 40;
@@ -201,6 +229,10 @@ class PointVisualizer {
       return;
     }
     const rect = this.container.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) {
+      this.needsInitialFit = true;
+      return;
+    }
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     for (const p of this.points) {
       minX = Math.min(minX, p.x);

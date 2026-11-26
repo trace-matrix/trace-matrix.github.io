@@ -534,6 +534,21 @@
               </div>
             </div>
 
+            <!-- Batch Chessboard / Matrix / Coordinate Input -->
+            <div class="sidebar-section" id="section-chess-input">
+              <div class="section-header">
+                <h3><label for="chess-batch-input">Input</label></h3>
+                <div class="header-tools-row">
+                  <div class="mini-pills-row" role="group" aria-label="Chessboard Input Mode">
+                    <button type="button" class="mini-pill active" data-chess-input-mode="auto" title="Auto-detect board string (.#NQRBKP), FEN, R C header, or coords (r c N / d5 N)">Auto</button>
+                    <button type="button" class="mini-pill" data-chess-input-mode="board" title="Display and parse full board grid (.#NQRBKP)">Board</button>
+                  </div>
+                  <button type="button" class="subtle-link-btn" id="btn-chess-copy-io" title="Copy R C &amp; Board input">Copy</button>
+                </div>
+              </div>
+              <textarea id="chess-batch-input" class="code-textarea" rows="4" placeholder="Board (.#NQRBKP), FEN, or r c N / d5 N:&#10;..#.....&#10;...N....&#10;0 3 N / d5 N"></textarea>
+            </div>
+
             <!-- Piece Selection & Mode -->
             <div class="sidebar-section">
               <div class="section-header">

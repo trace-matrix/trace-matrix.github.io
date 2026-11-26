@@ -66,6 +66,7 @@ class AppCoordinator {
 
       this.currentTab = selectedTab.id.replace('tab-', '');
       this.saveState();
+      this.refreshCurrentVisualizer();
       setTimeout(() => {
         this.refreshCurrentVisualizer();
       }, 30);
@@ -184,6 +185,7 @@ class AppCoordinator {
         window.gridVis.render();
       }
       if (window.chessVis) {
+        window.chessVis.syncInputFromBoard();
         window.chessVis.updateStatusPill();
         window.chessVis.render();
       }
